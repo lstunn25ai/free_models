@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/database.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
 export const modelsRouter = Router();
 
@@ -20,8 +21,10 @@ export const modelsRouter = Router();
  */
 modelsRouter.get("/", async (_req: Request, res: Response) => {
   const models = await prisma.model.findMany({
+    where: { providerModels: { some: { status: "ONLINE" } } },
     include: {
       providerModels: {
+        where: { status: "ONLINE" },
         include: {
           provider: { select: { id: true, name: true, slug: true } },
           _count: { select: { feedback: true } },
@@ -80,9 +83,10 @@ modelsRouter.get("/:category", async (req: Request, res: Response) => {
   }
 
   const models = await prisma.model.findMany({
-    where: { category: categoryUpper },
+    where: { category: categoryUpper, providerModels: { some: { status: "ONLINE" } } },
     include: {
       providerModels: {
+        where: { status: "ONLINE" },
         include: {
           provider: { select: { id: true, name: true, slug: true } },
           _count: { select: { feedback: true } },
@@ -102,7 +106,7 @@ modelsRouter.get("/:category", async (req: Request, res: Response) => {
  *
  * Body: { name, slug, category, stars?, priority?, advantage?, bestFor?, whenToUse?, providerId }
  */
-modelsRouter.post("/", async (req: Request, res: Response) => {
+modelsRouter.post("/", requireAdmin, async (req: Request, res: Response) => {
   const { name, slug, category, priority, advantage, bestFor, whenToUse, providerId } = req.body;
 
   // Validate required fields

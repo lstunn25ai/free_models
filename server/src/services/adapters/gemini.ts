@@ -17,18 +17,22 @@ export class GeminiAdapter implements ProviderAdapter {
     this.baseUrl = baseUrl;
   }
 
-  async listModels(): Promise<{ slug: string; name: string }[]> {
+  async listModels(): Promise<{ slug: string; name: string; isFree: boolean; freeSource: string }[]> {
     const response = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`);
 
     if (!response.ok) {
       throw new Error(`Gemini listModels failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json() as { models: Array<{ name: string; displayName?: string }> };
+    const data = await response.json() as { models: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }> };
 
-    return data.models.map(m => ({
+    return data.models.filter((m) => m.supportedGenerationMethods?.includes("generateContent") ?? true).map(m => ({
       slug: m.name.replace("models/", ""),
       name: m.displayName ?? m.name,
+      // The ListModels endpoint does not expose Free Tier entitlement. Keep
+      // these as candidates until the administrator verifies the current tier.
+      isFree: false,
+      freeSource: "Requires administrator verification against Gemini pricing",
     }));
   }
 

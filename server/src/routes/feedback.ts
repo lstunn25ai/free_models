@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { prisma } from "../config/database.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
 export const feedbackRouter = Router();
 
@@ -12,7 +13,7 @@ export const feedbackRouter = Router();
  * This is the SOURCE OF TRUTH for the Health Circle.
  * The circle is computed from the raw feedback data, not from a cached counter.
  */
-feedbackRouter.post("/", async (req: Request, res: Response) => {
+feedbackRouter.post("/", requireAdmin, async (req: Request, res: Response) => {
   const { providerModelId, type } = req.body;
 
   if (!providerModelId || !type) {

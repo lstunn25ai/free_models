@@ -36,9 +36,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { HealthCircle } from "@/components/health/HealthCircle";
 import { StatusIndicator } from "@/components/health/StatusIndicator";
-import { FeedbackButtons } from "@/components/feedback/FeedbackButtons";
 import { ProviderBadge } from "@/components/model/ProviderBadge";
-import { RefreshButton } from "@/components/refresh/RefreshButton";
 import {
   cn,
   formatSpeed,
@@ -171,16 +169,6 @@ function ProviderRow({
         {/* Health Circle */}
         <div className="flex-shrink-0">
           <HealthCircle up={approxUp} down={approxDown} size={32} />
-        </div>
-
-        {/* Feedback */}
-        <div className="flex-shrink-0">
-          <FeedbackButtons providerModelId={pm.id} disabled={isRacing} />
-        </div>
-
-        {/* Refresh single model */}
-        <div className="flex-shrink-0">
-          <RefreshButton modelId={pm.id} size="sm" />
         </div>
 
         {/* Expand for details — always show, but only show toggle if there are details */}

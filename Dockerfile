@@ -31,4 +31,4 @@ RUN mkdir -p /app/server/prisma && chown -R appuser:appgroup /app
 USER appuser
 WORKDIR /app/server
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "../node_modules/.bin/prisma db push --schema=prisma/schema.prisma && node dist/index.js"]

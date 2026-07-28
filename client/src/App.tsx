@@ -27,7 +27,13 @@ const pageTransition = {
 };
 
 export default function App() {
-  const [page, setPage] = useState<Page>("dashboard");
+  const [page, setPage] = useState<Page>(() => window.location.pathname === "/admin" ? "admin" : "dashboard");
+  const [setupToken] = useState(() => new URLSearchParams(window.location.search).get("setup") ?? undefined);
+
+  const navigate = (nextPage: Page) => {
+    setPage(nextPage);
+    window.history.pushState({}, "", nextPage === "admin" ? "/admin" : "/");
+  };
 
   return (
     <ToastProvider>
@@ -38,7 +44,7 @@ export default function App() {
       />
 
       {/* Navbar */}
-      <Navbar current={page} onNavigate={setPage} />
+      <Navbar current={page} onNavigate={navigate} />
 
       {/* Page content */}
       <main className="relative">
@@ -51,7 +57,7 @@ export default function App() {
             exit="exit"
             transition={pageTransition}
           >
-            {page === "dashboard" ? <Dashboard /> : <AdminPanel />}
+            {page === "dashboard" ? <Dashboard /> : <AdminPanel setupToken={setupToken} />}
           </motion.div>
         </AnimatePresence>
       </main>

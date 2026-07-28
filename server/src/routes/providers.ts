@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { prisma } from "../config/database.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
 export const providersRouter = Router();
 
@@ -28,7 +29,6 @@ providersRouter.get("/", async (_req: Request, res: Response) => {
       id: p.id,
       name: p.name,
       slug: p.slug,
-      baseUrl: p.baseUrl,
       isEnabled: p.isEnabled,
       totalModels: total,
       offlineModels: offline,
@@ -43,13 +43,12 @@ providersRouter.get("/", async (_req: Request, res: Response) => {
  * POST /api/providers
  * Add a new provider.
  *
- * Body: { name, slug, baseUrl, apiKey? }
+ * Body: { name, slug, baseUrl }
  *
- * The apiKey is stored encrypted (AES-256-GCM), never as plaintext or hash.
- * The frontend never receives the key back.
+ * Credentials are supplied only through the runtime environment.
  */
-providersRouter.post("/", async (req: Request, res: Response) => {
-  const { name, slug, baseUrl, apiKey } = req.body;
+providersRouter.post("/", requireAdmin, async (req: Request, res: Response) => {
+  const { name, slug, baseUrl } = req.body;
 
   if (!name || !slug || !baseUrl) {
     res.status(400).json({
@@ -59,14 +58,12 @@ providersRouter.post("/", async (req: Request, res: Response) => {
     return;
   }
 
-  // TODO: Encrypt apiKey with AES-256-GCM using ENCRYPTION_KEY from env
-  // For now, store null — keys come from .env at startup
   const provider = await prisma.provider.create({
     data: {
       name,
       slug: slug.toLowerCase(),
       baseUrl,
-      apiKeyEnc: null, // Will be set by the encryption service in Phase 2
+      apiKeyEnc: null,
     },
     select: {
       id: true,

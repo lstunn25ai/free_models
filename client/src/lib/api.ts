@@ -21,6 +21,7 @@ async function request<T>(
 ): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     ...options,
   });
 
@@ -48,6 +49,19 @@ async function request<T>(
 export const api = {
   // Health
   health: () => request<{ status: string; timestamp: string }>("/health"),
+
+  // Private administration
+  getAdminSession: () => request<import("./types").AdminSession>("/auth/session"),
+  setupAdmin: (password: string, setupToken: string) => request<void>("/auth/setup", { method: "POST", body: JSON.stringify({ password, setupToken }) }),
+  login: (password: string) => request<void>("/auth/login", { method: "POST", body: JSON.stringify({ password }) }),
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
+  getAdminProviders: () => request<{ providers: import("./types").AdminProvider[] }>("/admin/providers"),
+  getCandidates: (provider?: string) => request<{ candidates: import("./types").CandidateModel[] }>(`/admin/candidates${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`),
+  discoverProvider: (slug: string) => request<{ provider: string; imported: number; freeCandidates: number }>(`/admin/providers/${encodeURIComponent(slug)}/discover`, { method: "POST" }),
+  setCandidateFree: (id: string, isFree: boolean) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/free`, { method: "POST", body: JSON.stringify({ isFree }) }),
+  testCandidate: (id: string) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/test`, { method: "POST" }),
+  approveCandidate: (id: string, category: import("./types").ModelCategory, stars: number) => request<{ model: import("./types").Model }>(`/admin/candidates/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ category, stars }) }),
+  rejectCandidate: (id: string) => request<void>(`/admin/candidates/${encodeURIComponent(id)}/reject`, { method: "POST" }),
 
   // Models
   getModels: () =>

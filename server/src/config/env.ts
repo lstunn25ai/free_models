@@ -14,9 +14,6 @@ export interface EnvConfig {
   // Database
   DATABASE_URL: string;
 
-  // Encryption key for API key storage (must be 32 bytes hex-encoded for AES-256-GCM)
-  ENCRYPTION_KEY: string;
-
   // Provider API keys (optional — each provider can be configured via UI)
   OPENROUTER_API_KEY: string | undefined;
   GROQ_API_KEY: string | undefined;
@@ -60,7 +57,6 @@ export function loadEnv(): EnvConfig {
     PORT: parsePort(requireEnv("PORT")),
     NODE_ENV: (process.env.NODE_ENV as EnvConfig["NODE_ENV"]) ?? "development",
     DATABASE_URL: requireEnv("DATABASE_URL"),
-    ENCRYPTION_KEY: requireEnv("ENCRYPTION_KEY"),
     OPENROUTER_API_KEY: optionalEnv("OPENROUTER_API_KEY"),
     GROQ_API_KEY: optionalEnv("GROQ_API_KEY"),
     GEMINI_API_KEY: optionalEnv("GEMINI_API_KEY"),

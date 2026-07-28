@@ -47,13 +47,10 @@ jobs:
       - name: Validate deployment Compose
         env:
           FREE_MODELS_IMAGE: example/free-models
-          ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
           PROXY_NETWORK_NAME: example_network
         run: docker compose -f docker-compose.yml config --quiet
 
       - name: Validate development Compose
-        env:
-          ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
         run: docker compose -f docker-compose.dev.yml config --quiet
 
   container:

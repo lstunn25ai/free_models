@@ -11,7 +11,6 @@
 
 import { motion } from "framer-motion";
 import { Activity } from "lucide-react";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { cn } from "@/lib/utils";
 
 type Page = "dashboard" | "admin";
@@ -75,11 +74,6 @@ export function Navbar({ current, onNavigate }: NavbarProps) {
           ))}
         </div>
 
-        {/* Divider */}
-        <div className="h-5 w-px bg-ink-700/40" />
-
-        {/* Notifications */}
-        <NotificationBell />
       </motion.nav>
     </header>
   );

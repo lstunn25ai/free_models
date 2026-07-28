@@ -23,7 +23,42 @@ export const queryKeys = {
   providers: ["providers"] as const,
   feedback: (pmId: string) => ["feedback", pmId] as const,
   notifications: ["notifications"] as const,
+  adminSession: ["admin", "session"] as const,
+  adminProviders: ["admin", "providers"] as const,
+  candidates: (provider?: string) => ["admin", "candidates", provider ?? "all"] as const,
 };
+
+export function useAdminSession() {
+  return useQuery({ queryKey: queryKeys.adminSession, queryFn: api.getAdminSession, retry: false });
+}
+
+export function useAdminProviders(enabled: boolean) {
+  return useQuery({ queryKey: queryKeys.adminProviders, queryFn: api.getAdminProviders, enabled, retry: false });
+}
+
+export function useCandidates(enabled: boolean, provider?: string) {
+  return useQuery({ queryKey: queryKeys.candidates(provider), queryFn: () => api.getCandidates(provider), enabled, retry: false });
+}
+
+export function useAdminActions() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: queryKeys.adminProviders });
+    qc.invalidateQueries({ queryKey: ["admin", "candidates"] });
+    qc.invalidateQueries({ queryKey: queryKeys.models });
+    qc.invalidateQueries({ queryKey: queryKeys.providers });
+  };
+  return {
+    setup: useMutation({ mutationFn: ({ password, setupToken }: { password: string; setupToken: string }) => api.setupAdmin(password, setupToken), onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminSession }) }),
+    login: useMutation({ mutationFn: api.login, onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminSession }) }),
+    logout: useMutation({ mutationFn: api.logout, onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminSession }) }),
+    discover: useMutation({ mutationFn: api.discoverProvider, onSuccess: invalidate }),
+    setFree: useMutation({ mutationFn: ({ id, isFree }: { id: string; isFree: boolean }) => api.setCandidateFree(id, isFree), onSuccess: invalidate }),
+    test: useMutation({ mutationFn: api.testCandidate, onSuccess: invalidate }),
+    approve: useMutation({ mutationFn: ({ id, category, stars }: { id: string; category: import("@/lib/types").ModelCategory; stars: number }) => api.approveCandidate(id, category, stars), onSuccess: invalidate }),
+    reject: useMutation({ mutationFn: api.rejectCandidate, onSuccess: invalidate }),
+  };
+}
 
 // ─── Models ──────────────────────────────────────────────────────────
 

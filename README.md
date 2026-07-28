@@ -84,7 +84,6 @@ Required runtime variables:
 - `PORT` — internal HTTP port, normally `3000`;
 - `NODE_ENV` — `production` or `development`;
 - `DATABASE_URL` — SQLite connection string;
-- `ENCRYPTION_KEY` — exactly 64 hexadecimal characters.
 
 Provider credentials are optional and should be configured only for providers that are actually used. The complete safe variable list is in [`.env.example`](.env.example). Never commit a real `.env` file.
 
@@ -120,7 +119,8 @@ The upstream provider response remains outside this repository's control; a prov
 
 - Real credentials belong in local ignored `.env` files or Portainer Stack variables.
 - The repository must not contain API keys, encryption keys, certificates, private URLs, internal host paths, databases, or deployment archives.
-- Provider credentials stored by the application are encrypted with `ENCRYPTION_KEY`.
+- Provider credentials are read only by the server from its runtime environment and never returned by the API.
+- The first administrator is created through a one-time setup link in the container log; the password is stored only as a hash.
 - The runtime image uses a non-root user.
 - Do not expose the database volume or application secrets through bind mounts.
 

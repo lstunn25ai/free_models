@@ -1,8 +1,12 @@
 import { createApp } from "./app.js";
 import { getConfig } from "./config/env.js";
+import { bootstrapProviders } from "./services/provider-bootstrap.js";
+import { initializeAdminSetup } from "./middleware/admin-auth.js";
 
 async function main() {
   const config = getConfig();
+  await bootstrapProviders();
+  await initializeAdminSetup();
   const app = createApp();
 
   const server = app.listen(config.PORT, () => {

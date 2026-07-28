@@ -66,11 +66,39 @@ export interface CategoryModelsResponse {
 }
 
 export interface ProviderWithReliability extends Provider {
-  baseUrl: string;
   isEnabled: boolean;
   totalModels: number;
   offlineModels: number;
   isUnreliable: boolean;
+}
+
+export interface AdminSession {
+  authenticated: boolean;
+  initialized: boolean;
+  setupRequired: boolean;
+}
+
+export interface AdminProvider extends Provider {
+  configured: boolean;
+  isEnabled: boolean;
+  candidateCount: number;
+  approvedModelCount: number;
+}
+
+export interface CandidateModel {
+  id: string;
+  slug: string;
+  name: string;
+  isFree: boolean;
+  freeSource: string | null;
+  categorySuggestion: ModelCategory | null;
+  reviewStatus: "DISCOVERED" | "APPROVED" | "REJECTED";
+  testStatus: HealthStatus;
+  speedMs: number | null;
+  errorMessage: string | null;
+  lastChecked: string | null;
+  discoveredAt: string;
+  provider: Provider;
 }
 
 export interface ProvidersResponse {

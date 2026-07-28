@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { prisma } from "../config/database.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
 export const notificationsRouter = Router();
 
@@ -9,7 +10,7 @@ export const notificationsRouter = Router();
  *
  * Auto-archives notifications older than 7 days (sets archivedAt).
  */
-notificationsRouter.get("/", async (_req: Request, res: Response) => {
+notificationsRouter.get("/", requireAdmin, async (_req: Request, res: Response) => {
   // Auto-archive: mark as archived if discovered > 7 days ago and not acknowledged
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -67,7 +68,7 @@ notificationsRouter.get("/", async (_req: Request, res: Response) => {
  * POST /api/notifications/:id/acknowledge
  * Marks a NEW model notification as acknowledged (after the user adds it to the table).
  */
-notificationsRouter.post("/:id/acknowledge", async (req: Request, res: Response) => {
+notificationsRouter.post("/:id/acknowledge", requireAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const updated = await prisma.newModel.update({

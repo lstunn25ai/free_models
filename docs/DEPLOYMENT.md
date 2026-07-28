@@ -121,20 +121,14 @@ spec:
 | `PORT` | Yes | Backend port (default: 3000) |
 | `NODE_ENV` | Yes | `development` or `production` |
 | `DATABASE_URL` | Yes | SQLite path (`file:/path/to/dev.db`) |
-| `ENCRYPTION_KEY` | Yes | 64-char hex AES-256 key |
 | `OPENROUTER_API_KEY` | No | Provider API key |
 | `GROQ_API_KEY` | No | Provider API key |
 | `GEMINI_API_KEY` | No | Provider API key |
 
-**Generate encryption key:**
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
 ## Security Checklist
 
 - [ ] `.env` files are NOT committed to git
-- [ ] `ENCRYPTION_KEY` is unique and randomly generated
+- [ ] Provider keys exist only in ignored `.env` or Portainer Stack variables
 - [ ] HTTPS is configured (nginx reverse proxy or load balancer)
 - [ ] Firewall allows only ports 80, 443, and SSH
 - [ ] Database backups are automated

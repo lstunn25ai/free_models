@@ -8,7 +8,7 @@ import { TEST_PROMPTS } from "../provider-adapter.js";
  * API format: OpenAI-compatible /v1/chat/completions
  */
 export class OpenRouterAdapter implements ProviderAdapter {
-  readonly slug = "openrouter";
+  readonly slug: string = "openrouter";
   readonly baseUrl: string;
   private readonly apiKey: string;
 
@@ -17,8 +17,8 @@ export class OpenRouterAdapter implements ProviderAdapter {
     this.baseUrl = baseUrl;
   }
 
-  async listModels(): Promise<{ slug: string; name: string }[]> {
-    const response = await fetch(`${this.baseUrl}/models`, {
+  async listModels(): Promise<{ slug: string; name: string; isFree: boolean; freeSource?: string }[]> {
+    const response = await fetch(`${this.baseUrl}/models?output_modalities=all`, {
       headers: { "Authorization": `Bearer ${this.apiKey}` },
     });
 
@@ -26,11 +26,17 @@ export class OpenRouterAdapter implements ProviderAdapter {
       throw new Error(`OpenRouter listModels failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json() as { data: Array<{ id: string; name?: string }> };
+    const data = await response.json() as {
+      data: Array<{ id: string; name?: string; pricing?: { prompt?: string; completion?: string } }>;
+    };
 
     return data.data.map(m => ({
       slug: m.id,
       name: m.name ?? m.id,
+      // The provider model id and zero token pricing are the only catalogue
+      // signals used here; a candidate still requires a live test before approval.
+      isFree: m.id.endsWith(":free") || (m.pricing?.prompt === "0" && m.pricing?.completion === "0"),
+      freeSource: m.id.endsWith(":free") ? "OpenRouter :free catalog label" : (m.pricing?.prompt === "0" && m.pricing?.completion === "0" ? "OpenRouter zero token pricing" : undefined),
     }));
   }
 

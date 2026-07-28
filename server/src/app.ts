@@ -10,6 +10,8 @@ import { providersRouter } from "./routes/providers.js";
 import { feedbackRouter } from "./routes/feedback.js";
 import { refreshRouter } from "./routes/refresh.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { authRouter } from "./routes/auth.js";
+import { adminRouter } from "./routes/admin.js";
 
 export function createApp(): Express {
   const config = getConfig();
@@ -24,7 +26,8 @@ export function createApp(): Express {
   app.use(cors({
     origin: config.NODE_ENV === "development"
       ? ["http://localhost:5173", "http://localhost:3000"]
-      : true, // In production, same-origin through nginx
+      : false,
+    credentials: config.NODE_ENV === "development",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }));
@@ -43,6 +46,8 @@ export function createApp(): Express {
   // ─── API Routes ────────────────────────────────────────────────────
   app.use("/api/models", modelsRouter);
   app.use("/api/providers", providersRouter);
+  app.use("/api/auth", authRouter);
+  app.use("/api/admin", adminRouter);
   app.use("/api/feedback", feedbackRouter);
   app.use("/api/refresh", refreshRouter);
   app.use("/api/notifications", notificationsRouter);
@@ -56,8 +61,7 @@ export function createApp(): Express {
     } catch (error) {
       res.status(503).json({
         status: "error",
-        message: "Database connection failed",
-        error: error instanceof Error ? error.message : "Unknown error",
+      message: "Database connection failed",
       });
     }
   });

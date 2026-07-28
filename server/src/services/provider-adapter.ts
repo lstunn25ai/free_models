@@ -43,6 +43,8 @@ export interface DiscoveredModel {
   slug: string;
   name: string;
   category?: string;
+  isFree?: boolean;
+  freeSource?: string;
 }
 
 export type HealthStatus = "ONLINE" | "OFFLINE" | "DEGRADED";

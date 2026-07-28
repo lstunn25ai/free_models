@@ -47,8 +47,57 @@ model Provider {
 
   providerModels ProviderModel[]
   newModels      NewModel[]
+  candidates     CandidateModel[]
 
   @@index([isEnabled])
+}
+
+/// A provider catalog entry that has not yet been approved for the public rating.
+/// Candidates never appear in the public API. They must be free, tested and
+/// explicitly approved by an administrator before becoming a Model.
+model CandidateModel {
+  id                 String   @id @default(cuid())
+  providerId         String
+  slug               String
+  name               String
+  isFree             Boolean  @default(false)
+  freeSource         String?  // e.g. "provider catalog" or "manual verification"
+  categorySuggestion String?
+  reviewStatus       String   @default("DISCOVERED") // DISCOVERED | APPROVED | REJECTED
+  testStatus         String   @default("PENDING")    // PENDING | ONLINE | OFFLINE | DEGRADED
+  speedMs            Int?
+  errorMessage       String?
+  lastChecked        DateTime?
+  discoveredAt       DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, slug])
+  @@index([providerId, reviewStatus])
+  @@index([testStatus])
+}
+
+/// Exactly one local administrator. The plaintext password never reaches the database.
+model AdminCredential {
+  id           String         @id @default("owner")
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  sessions     AdminSession[]
+}
+
+/// Opaque, revocable browser sessions. Only a SHA-256 hash of the token is stored.
+model AdminSession {
+  id           String          @id @default(cuid())
+  tokenHash    String          @unique
+  credentialId String
+  expiresAt    DateTime
+  createdAt    DateTime        @default(now())
+
+  credential AdminCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 /// Link table: one Model served by one Provider, with independent health metrics

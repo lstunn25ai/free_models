@@ -10,12 +10,12 @@
 
 ### Security
 - [ ] `.env` files are NOT in git (verified via .gitignore)
-- [ ] `ENCRYPTION_KEY` is randomly generated (64 hex chars)
 - [ ] HTTPS certificate is configured (Let's Encrypt or similar)
 - [ ] Firewall rules are set (ports 80, 443, SSH only)
 - [ ] Docker images use non-root user
 - [ ] Docker images are scanned for vulnerabilities
-- [ ] API keys are stored encrypted in database
+- [ ] API keys exist only in Portainer Stack variables and are not returned by the API
+- [ ] One-time administrator setup is completed and the setup path has expired
 - [ ] CORS is restricted to known domains
 - [ ] Rate limiting is enabled on `/api/refresh` endpoints
 

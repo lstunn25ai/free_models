@@ -10,7 +10,7 @@
  * During a race, cards show live results.
  */
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Brain,
@@ -24,7 +24,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ModelCard } from "@/components/model/ModelCard";
-import { RaceButton } from "@/components/refresh/RaceButton";
 import { Card } from "@/components/ui/Card";
 import { Skeleton, SkeletonText } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -33,7 +32,6 @@ import { CATEGORY_META } from "@/lib/utils";
 import type {
   Model,
   ProviderWithReliability,
-  RefreshResult,
 } from "@/lib/types";
 
 const categoryIcons: Record<string, LucideIcon> = {
@@ -85,11 +83,6 @@ export function CategorySection({
   isError = false,
   onRetry,
 }: CategorySectionProps) {
-  const [raceResults, setRaceResults] = useState<
-    Record<string, RefreshResult>
-  >({});
-  const [isRacing, setIsRacing] = useState(false);
-
   const meta = CATEGORY_META[category] ?? {
     label: category,
     description: "",
@@ -127,21 +120,6 @@ export function CategorySection({
           </span>
         </div>
 
-        {/* Race button */}
-        {!isLoading && !isError && modelCount > 0 && (
-          <RaceButton
-            category={category}
-            modelCount={modelCount}
-            onRaceStart={() => {
-              setIsRacing(true);
-              setRaceResults({});
-            }}
-            onRaceComplete={(results) => {
-              setRaceResults(results);
-              setIsRacing(false);
-            }}
-          />
-        )}
       </div>
 
       {/* Content states */}
@@ -195,8 +173,6 @@ export function CategorySection({
               <ModelCard
                 model={model}
                 providers={providers}
-                isRacing={isRacing}
-                raceResults={raceResults}
               />
             </motion.div>
           ))}

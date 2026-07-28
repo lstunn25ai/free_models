@@ -15,7 +15,6 @@ Set values in Portainer Stack Environment variables:
 | `FREE_MODELS_IMAGE` | Full image name in the container registry |
 | `IMAGE_TAG` | Immutable release tag or approved branch tag |
 | `PROXY_NETWORK_NAME` | Existing Docker network used by the reverse proxy |
-| `ENCRYPTION_KEY` | 64 hexadecimal characters used for encrypted provider credentials |
 | `HOST_PORT` | Host port exposed to the reverse proxy |
 | `PORT` | Internal application port, normally `3000` |
 | `DATABASE_URL` | SQLite path, normally `file:/app/server/prisma/dev.db` |
@@ -33,6 +32,10 @@ Set values in Portainer Stack Environment variables:
 | `OLLAMA_API_KEY` | Optional provider credential |
 
 Do not copy real values into GitHub, Compose, README files, ZIP archives, issue comments, or chat.
+
+## First administrator
+
+No administrator password belongs in Stack variables. On the first start, the container writes a one-time `/admin?setup=…` path to its own log. Open that path on the public site within 15 minutes and set the password for the single `admin` account. The path expires after setup or a restart; only the password hash and opaque session hashes are stored in SQLite.
 
 ## Persistent data
 

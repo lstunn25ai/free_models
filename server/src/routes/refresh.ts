@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { prisma } from "../config/database.js";
 import { runHealthCheck } from "../services/health-check.js";
+import { requireAdmin } from "../middleware/admin-auth.js";
 
 export const refreshRouter = Router();
 
@@ -14,7 +15,7 @@ export const refreshRouter = Router();
  * The table order does NOT change (static grid). Only the speed_ms and status
  * columns update dynamically.
  */
-refreshRouter.post("/category/:category", async (req: Request, res: Response) => {
+refreshRouter.post("/category/:category", requireAdmin, async (req: Request, res: Response) => {
   const categoryRaw = req.params["category"];
   if (!categoryRaw) {
     res.status(400).json({ error: "Missing category parameter" });
@@ -88,7 +89,7 @@ refreshRouter.post("/category/:category", async (req: Request, res: Response) =>
  * POST /api/refresh/model/:id
  * Runs a health check for a single provider→model link.
  */
-refreshRouter.post("/model/:id", async (req: Request, res: Response) => {
+refreshRouter.post("/model/:id", requireAdmin, async (req: Request, res: Response) => {
   const id = req.params["id"];
   if (!id) {
     res.status(400).json({ error: "Missing id parameter" });

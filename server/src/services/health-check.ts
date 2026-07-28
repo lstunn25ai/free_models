@@ -3,6 +3,7 @@ import { getConfig } from "../config/env.js";
 import { OpenRouterAdapter } from "./adapters/openrouter.js";
 import { GroqAdapter } from "./adapters/groq.js";
 import { GeminiAdapter } from "./adapters/gemini.js";
+import { NvidiaAdapter } from "./adapters/nvidia.js";
 import type { ProviderAdapter, HealthCheckResult } from "./provider-adapter.js";
 
 /**
@@ -35,8 +36,16 @@ function getAdapters(): Map<string, ProviderAdapter> {
     adapters.set("gemini", new GeminiAdapter(config.GEMINI_API_KEY));
   }
 
+  if (config.NVIDIA_NIM_API_KEY) {
+    adapters.set("nvidia", new NvidiaAdapter(config.NVIDIA_NIM_API_KEY));
+  }
+
   adapterRegistry = adapters;
   return adapters;
+}
+
+export function getProviderAdapter(slug: string): ProviderAdapter | undefined {
+  return getAdapters().get(slug);
 }
 
 /**
