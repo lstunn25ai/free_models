@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/database.js";
 
 export const modelsRouter = Router();
@@ -128,7 +129,7 @@ modelsRouter.post("/", async (req: Request, res: Response) => {
   }
 
   // Create model + provider_model link in a transaction
-  const result = await prisma.$transaction(async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const model = await tx.model.create({
       data: {
         name,
