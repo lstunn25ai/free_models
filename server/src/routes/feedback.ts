@@ -66,15 +66,15 @@ feedbackRouter.get("/:providerModelId", async (req: Request, res: Response) => {
     take: 100, // Limit to last 100 entries
   });
 
-  const upCount = feedbacks.filter(f => f.type === "UP").length;
-  const downCount = feedbacks.filter(f => f.type === "DOWN").length;
+  const upCount = feedbacks.filter((f: (typeof feedbacks)[number]) => f.type === "UP").length;
+  const downCount = feedbacks.filter((f: (typeof feedbacks)[number]) => f.type === "DOWN").length;
 
   res.json({
     total: feedbacks.length,
     up: upCount,
     down: downCount,
     healthCircle: computeHealthCircle(upCount, downCount),
-    feedbacks: feedbacks.map(f => ({
+    feedbacks: feedbacks.map((f: (typeof feedbacks)[number]) => ({
       type: f.type,
       createdAt: f.createdAt.toISOString(),
     })),

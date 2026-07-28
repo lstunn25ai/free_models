@@ -19,9 +19,9 @@ providersRouter.get("/", async (_req: Request, res: Response) => {
     orderBy: { name: "asc" },
   });
 
-  const result = providers.map(p => {
+  const result = providers.map((p: (typeof providers)[number]) => {
     const total = p.providerModels.length;
-    const offline = p.providerModels.filter(pm => pm.status === "OFFLINE").length;
+    const offline = p.providerModels.filter((pm: (typeof p.providerModels)[number]) => pm.status === "OFFLINE").length;
     const isUnreliable = total > 0 && (offline / total) > 0.20;
 
     return {

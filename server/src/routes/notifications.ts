@@ -36,7 +36,10 @@ notificationsRouter.get("/", async (_req: Request, res: Response) => {
   });
 
   // Group by provider for the bell-icon dropdown
-  const grouped = newModels.reduce((acc, nm) => {
+  const grouped = newModels.reduce((
+    acc: Record<string, { providerName: string; providerSlug: string; models: any[] }>,
+    nm: (typeof newModels)[number],
+  ) => {
     const providerSlug = nm.provider.slug;
     if (!acc[providerSlug]) {
       acc[providerSlug] = {

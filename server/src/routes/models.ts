@@ -48,7 +48,7 @@ modelsRouter.get("/", async (_req: Request, res: Response) => {
       advantage: model.advantage,
       bestFor: model.bestFor,
       whenToUse: model.whenToUse,
-      providerModels: model.providerModels.map((pm) => ({
+      providerModels: model.providerModels.map((pm: (typeof model.providerModels)[number]) => ({
         id: pm.id,
         status: pm.status,
         speedMs: pm.speedMs,
@@ -128,7 +128,7 @@ modelsRouter.post("/", async (req: Request, res: Response) => {
   }
 
   // Create model + provider_model link in a transaction
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
     const model = await tx.model.create({
       data: {
         name,
