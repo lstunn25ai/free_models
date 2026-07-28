@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --- Type definitions (SQLite stores as TEXT, app code enforces valid values) ---
+// Category:    "OPUS" | "SONNET" | "HAIKU" | "FABLE" | "IMAGE" | "VIDEO" | "EMBEDDINGS" | "DEFAULT"
+// HealthStatus: "PENDING" | "ONLINE" | "OFFLINE" | "DEGRADED"
+// FeedbackType: "UP" | "DOWN"
+
+// --- Core Entities ---
+
+/// A canonical AI model (e.g. "Google Gemma 2 9B"). One model can be served by multiple providers.
+model Model {
+  id        String   @id @default(cuid())
+  name      String   // Human readable: "Gemma 2 9B"
+  slug      String   @unique // Canonical model identifier: "google/gemma-2-9b-it"
+  category  String   // OPUS | SONNET | HAIKU | FABLE | IMAGE | VIDEO | EMBEDDINGS | DEFAULT
+  stars     Float    @default(3.0) // 1.0–5.0, result of the funnel ranking
+  priority  String?  // "primary" | "backup" | "fast" | "vision" | "code-expert"
+  advantage String?  // Short description of strengths
+  bestFor   String?  // Best use-case scenarios
+  whenToUse String?  // Conditions for selecting this model
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  providerModels ProviderModel[]
+
+  @@index([category])
+  @@index([stars])
+}
+
+/// An API provider (OpenRouter, Groq, etc.)
+model Provider {
+  id            String  @id @default(cuid())
+  name          String  // "OpenRouter", "Groq", "HuggingFace"
+  slug          String  @unique // "openrouter", "groq"
+  baseUrl       String  // API endpoint base URL
+  apiKeyEnc     String? // AES-256-GCM encrypted API key (NOT a hash — we need to decrypt to call the API)
+  isEnabled     Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  providerModels ProviderModel[]
+  newModels      NewModel[]
+
+  @@index([isEnabled])
+}
+
+/// Link table: one Model served by one Provider, with independent health metrics
+model ProviderModel {
+  id           String    @id @default(cuid())
+  modelId      String
+  providerId   String
+
+  status       String    @default("PENDING") // PENDING | ONLINE | OFFLINE | DEGRADED
+  speedMs      Int?         // Last measured response time in ms
+  errorMessage String?      // Last error details (for tooltip on ❌)
+  lastChecked  DateTime?    // When the last health-check ran
+
+  model    Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  feedback   Feedback[]
+  healthLogs HealthLog[]
+
+  @@unique([modelId, providerId])
+  @@index([providerId])
+  @@index([status])
+}
+
+/// Individual user feedback entry — source of truth for the Health Circle
+model Feedback {
+  id               String   @id @default(cuid())
+  providerModelId  String
+  type             String   // "UP" or "DOWN"
+  createdAt        DateTime @default(now())
+
+  providerModel    ProviderModel @relation(fields: [providerModelId], references: [id], onDelete: Cascade)
+
+  @@index([providerModelId])
+  @@index([providerModelId, createdAt])
+}
+
+/// Historical health-check results — enables trend analysis and provider reliability calculation
+model HealthLog {
+  id               String   @id @default(cuid())
+  providerModelId  String
+  pingMs           Int?
+  throughputTps    Float?       // tokens per second
+  qualityScore     Float?       // 0.0–1.0
+  recencyScore     Float?       // 0.0–1.0
+  status           String   // PENDING | ONLINE | OFFLINE | DEGRADED
+  errorMessage     String?
+  checkedAt        DateTime @default(now())
+
+  providerModel    ProviderModel @relation(fields: [providerModelId], references: [id], onDelete: Cascade)
+
+  @@index([providerModelId])
+  @@index([checkedAt])
+}
+
+/// Newly discovered models from provider catalogs — shown as NEW notifications
+model NewModel {
+  id           String    @id @default(cuid())
+  slug         String   // "provider/model-slug"
+  providerId   String
+  category     String?  // OPUS | SONNET | HAIKU | FABLE | IMAGE | VIDEO | EMBEDDINGS | DEFAULT
+  discoveredAt DateTime @default(now())
+  acknowledged Boolean  @default(false) // true once manually added to the table
+  archivedAt   DateTime? // set 7 days after discovery if not acknowledged
+
+  provider     Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([acknowledged])
+  @@index([discoveredAt])
+}

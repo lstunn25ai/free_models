@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base ─────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-ink-black text-ink-100 font-sans antialiased;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  /* Focus visibility — never remove */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+
+  /* Scrollbar — subtle, dark-native */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-600;
+  }
+
+  /* Tabular figures for data columns */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ─── Components ───────────────────────────────────────────────────── */
+
+@layer components {
+  /* Double-Bezel outer shell — the nested architecture pattern */
+  .bezel-outer {
+    border-radius: 14px;
+    padding: 1.5px;
+    background: linear-gradient(
+      to bottom,
+      oklch(0.30 0.008 270 / 0.4),
+      oklch(0.12 0.004 270 / 0.2)
+    );
+  }
+
+  /* Glass surface — for floating/sticky elements only */
+  .glass-surface {
+    background-color: oklch(0.08 0.003 270 / 0.8);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid oklch(0.30 0.008 270 / 0.3);
+  }
+
+  /* Shimmer skeleton background */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      oklch(0.12 0.004 270) 0%,
+      oklch(0.16 0.006 270) 50%,
+      oklch(0.12 0.004 270) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+}
+
+/* ─── Utilities ────────────────────────────────────────────────────── */
+
+@layer utilities {
+  /* Radial mesh gradient background — subtle glowing orbs */
+  .bg-mesh {
+    background-image:
+      radial-gradient(ellipse 80% 60% at 20% 0%, oklch(0.65 0.20 250 / 0.06), transparent),
+      radial-gradient(ellipse 60% 50% at 80% 20%, oklch(0.55 0.18 280 / 0.04), transparent),
+      radial-gradient(ellipse 70% 50% at 50% 100%, oklch(0.60 0.15 200 / 0.03), transparent);
+  }
+
+  /* Text balance for headings */
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
+
+/* ─── Reduced Motion ───────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,70 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials/
+credentials.env
+
+# Runtime data
+data/
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# Build output and dependencies
+dist/
+client/dist/
+server/dist/
+*.tsbuildinfo
+client/vite.config.js
+client/vite.config.d.ts
+node_modules/
+
+# Local-only deployment material
+NAS_Backup/
+portainer_stack/
+ref/
+*.zip
+docker-compose.override.yml
+docker-compose-web-editor.yml
+Dockerfile-portainer.yml
+
+# Internal agent and workspace metadata
+.claude/
+.agents/
+.koda/
+claude/
+ruflo/
+skill-hunter.md
+AGENTS.md
+CLAUDE.md
+project.md
+questions.md
+TASKS.md
+PRD.md
+ecosystem.config.js
+k8s/
+monitoring/
+docs/superpowers/
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs and test output
+*.log
+logs/
+npm-debug.log*
+coverage/
+.nyc_output/
+
+# Local Prisma artifacts
+prisma/migrations/

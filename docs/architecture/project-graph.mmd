@@ -1,0 +1,19 @@
+flowchart LR
+    User[User] --> Web[React and Vite frontend]
+    Web --> API[Express API]
+    API --> Health[Health check]
+    API --> Models[Model and provider routes]
+    API --> Feedback[Feedback and notifications]
+    API --> Adapters[Provider adapters]
+    API --> Prisma[Prisma client]
+    Prisma --> SQLite[(SQLite database)]
+    Adapters --> Providers[External AI providers]
+    API --> Static[Static SPA fallback]
+    Web -. build .-> Image[Container image]
+    API -. build .-> Image
+    Image --> Runtime[Non-root Node runtime]
+
+    classDef public fill:#102a43,stroke:#7dd3fc,color:#f8fafc;
+    classDef data fill:#3b1d4a,stroke:#f0abfc,color:#fdf4ff;
+    class User,Web,API,Health,Models,Feedback,Adapters,Providers,Static,Image,Runtime public;
+    class Prisma,SQLite data;

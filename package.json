@@ -1,0 +1,23 @@
+{
+  "name": "free-models",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Free Models Rating — dashboard for tracking free AI models across providers",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build:server": "npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "build": "npm run build:client && npm run build:server",
+    "db:push": "npm run db:push --workspace=server",
+    "db:seed": "npm run db:seed --workspace=server",
+    "db:generate": "npm run db:generate --workspace=server"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
