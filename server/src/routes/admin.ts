@@ -16,12 +16,18 @@ function suggestCategory(slug: string, name: string): string {
   return "DEFAULT";
 }
 
-async function quotaFor(providerSlug: string, modelSlug: string) {
+async function quotaFor(providerSlug: string, model: { slug: string; isFree?: boolean; freeSource?: string }) {
   const rules = await prisma.quotaRule.findMany({ where: { providerSlug } });
   const rule = rules
-    .filter((candidate) => modelSlug === candidate.modelPattern || modelSlug.includes(candidate.modelPattern))
+    .filter((candidate) => model.slug === candidate.modelPattern || model.slug.includes(candidate.modelPattern))
     .sort((left, right) => right.modelPattern.length - left.modelPattern.length)[0];
-  return classifyQuota(rule ? { status: rule.status as QuotaStatus, limit: rule.limit, period: rule.period } : undefined);
+  return classifyQuota(rule ? { status: rule.status as QuotaStatus, limit: rule.limit, period: rule.period } : undefined, model);
+}
+
+function providerDiagnostic(action: "discovery" | "test") {
+  return action === "discovery"
+    ? "Provider discovery is unavailable. Check the credential, API scope, or provider endpoint."
+    : "Provider model test is unavailable. Check the provider status or try again later.";
 }
 
 function roleFor(slug: string, name: string, category?: string) {
@@ -46,6 +52,7 @@ function roleMatchesFor(slug: string, name: string, category?: string) {
   }
   if (/(code|coder|general|chat)/.test(value)) add("SONNET", 3, "General coding or chat signal.");
   if (/(vision|image|vl|visual)/.test(value)) add("IMAGE", 3, "Vision capability signal.");
+  if (!matches.length) add("DEFAULT", 3, "General text candidate; manual placement confirmation is required.");
   return matches.sort((left, right) => right.stars - left.stars || left.role.localeCompare(right.role));
 }
 
@@ -126,10 +133,16 @@ adminRouter.post("/providers/:slug/discover", async (req: Request, res: Response
     res.status(404).json({ error: "Provider not found" });
     return;
   }
-  const discovered = await adapter.listModels();
+  let discovered;
+  try {
+    discovered = await adapter.listModels();
+  } catch {
+    res.status(502).json({ error: providerDiagnostic("discovery") });
+    return;
+  }
   let imported = 0;
   for (const model of discovered) {
-    const quota = await quotaFor(provider.slug, model.slug);
+    const quota = await quotaFor(provider.slug, model);
     const category = model.category ?? suggestCategory(model.slug, model.name);
     const role = roleFor(model.slug, model.name, category);
     await prisma.candidateModel.upsert({
@@ -141,6 +154,7 @@ adminRouter.post("/providers/:slug/discover", async (req: Request, res: Response
         quotaStatus: quota.status,
         quotaLimit: quota.limit,
         quotaPeriod: quota.period,
+        quotaSource: quota.source,
         quotaCheckedAt: quota.status === "UNKNOWN" ? null : new Date(),
         categorySuggestion: category,
         roleScore: role.score,
@@ -155,6 +169,7 @@ adminRouter.post("/providers/:slug/discover", async (req: Request, res: Response
         quotaStatus: quota.status,
         quotaLimit: quota.limit,
         quotaPeriod: quota.period,
+        quotaSource: quota.source,
         quotaCheckedAt: quota.status === "UNKNOWN" ? null : new Date(),
         categorySuggestion: category,
         roleScore: role.score,
@@ -219,15 +234,21 @@ adminRouter.post("/providers/discover-all", async (_req: Request, res: Response)
   for (const provider of providers) {
     const adapter = getProviderAdapter(provider.slug);
     if (!adapter) { results.push({ provider: provider.slug, imported: 0, error: "Provider is not configured" }); continue; }
-    const discovered = await adapter.listModels();
+    let discovered;
+    try {
+      discovered = await adapter.listModels();
+    } catch {
+      results.push({ provider: provider.slug, imported: 0, error: providerDiagnostic("discovery") });
+      continue;
+    }
     for (const model of discovered) {
-      const quota = await quotaFor(provider.slug, model.slug);
+      const quota = await quotaFor(provider.slug, model);
       const category = model.category ?? suggestCategory(model.slug, model.name);
       const role = roleFor(model.slug, model.name, category);
       await prisma.candidateModel.upsert({
         where: { providerId_slug: { providerId: provider.id, slug: model.slug } },
-        update: { name: model.name, quotaStatus: quota.status, quotaLimit: quota.limit, quotaPeriod: quota.period, quotaCheckedAt: quota.status === "UNKNOWN" ? null : new Date(), categorySuggestion: category, roleScore: role.score, roleReason: role.reason },
-        create: { providerId: provider.id, slug: model.slug, name: model.name, isFree: false, quotaStatus: quota.status, quotaLimit: quota.limit, quotaPeriod: quota.period, quotaCheckedAt: quota.status === "UNKNOWN" ? null : new Date(), categorySuggestion: category, roleScore: role.score, roleReason: role.reason },
+        update: { name: model.name, isFree: Boolean(model.isFree), freeSource: model.freeSource ?? null, quotaStatus: quota.status, quotaLimit: quota.limit, quotaPeriod: quota.period, quotaSource: quota.source, quotaCheckedAt: quota.status === "UNKNOWN" ? null : new Date(), categorySuggestion: category, roleScore: role.score, roleReason: role.reason },
+        create: { providerId: provider.id, slug: model.slug, name: model.name, isFree: Boolean(model.isFree), freeSource: model.freeSource ?? null, quotaStatus: quota.status, quotaLimit: quota.limit, quotaPeriod: quota.period, quotaSource: quota.source, quotaCheckedAt: quota.status === "UNKNOWN" ? null : new Date(), categorySuggestion: category, roleScore: role.score, roleReason: role.reason },
       });
     }
     results.push({ provider: provider.slug, imported: discovered.length });
@@ -251,8 +272,8 @@ adminRouter.post("/candidates/:id/free", async (req: Request, res: Response) => 
 
 adminRouter.post("/candidates/:id/quota", async (req: Request, res: Response) => {
   const status = req.body?.status;
-  if (!["FREE", "LIMITED", "UNKNOWN"].includes(status)) {
-    res.status(400).json({ error: "status must be FREE, LIMITED or UNKNOWN" });
+  if (!["FREE", "LIMITED", "PAID", "UNKNOWN"].includes(status)) {
+    res.status(400).json({ error: "status must be FREE, LIMITED, PAID or UNKNOWN" });
     return;
   }
   const candidate = await prisma.candidateModel.update({
@@ -274,7 +295,7 @@ adminRouter.post("/candidates/:id/quota", async (req: Request, res: Response) =>
 adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => {
   const providerSlug = typeof req.body?.provider === "string" ? req.body.provider : undefined;
   const candidates = await prisma.candidateModel.findMany({
-    where: { reviewStatus: "DISCOVERED", hidden: false, quotaStatus: { in: ["FREE", "LIMITED"] }, ...(providerSlug ? { provider: { slug: providerSlug } } : {}) },
+    where: { reviewStatus: { in: ["DISCOVERED", "APPROVED"] }, hidden: false, quotaStatus: { in: ["FREE", "LIMITED"] }, ...(providerSlug ? { provider: { slug: providerSlug } } : {}) },
     include: { provider: { select: { id: true, name: true, slug: true } } },
     take: 100,
     orderBy: { updatedAt: "asc" },
@@ -287,9 +308,14 @@ adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => 
       results.push({ id: candidate.id, status: "OFFLINE", error: "Provider is not configured" });
       return;
     }
-    const result = await adapter.healthCheck(candidate.slug);
-    await prisma.candidateModel.update({ where: { id: candidate.id }, data: { testStatus: result.status, speedMs: result.speedMs, errorMessage: result.errorMessage, lastChecked: new Date() } });
-    results.push({ id: candidate.id, status: result.status, speedMs: result.speedMs, error: result.errorMessage });
+    try {
+      const result = await adapter.healthCheck(candidate.slug);
+      await prisma.candidateModel.update({ where: { id: candidate.id }, data: { testStatus: result.status, speedMs: result.speedMs, errorMessage: result.errorMessage, lastChecked: new Date() } });
+      results.push({ id: candidate.id, status: result.status, speedMs: result.speedMs, error: result.errorMessage });
+    } catch {
+      await prisma.candidateModel.update({ where: { id: candidate.id }, data: { testStatus: "OFFLINE", speedMs: null, errorMessage: providerDiagnostic("test"), lastChecked: new Date() } });
+      results.push({ id: candidate.id, status: "OFFLINE", error: providerDiagnostic("test") });
+    }
   };
   await Promise.all(Array.from({ length: Math.min(3, candidates.length) }, async () => {
     while (cursor < candidates.length) {
@@ -326,7 +352,12 @@ adminRouter.post("/candidates/:id/test", async (req: Request, res: Response) => 
     res.status(409).json({ error: "Provider is not configured" });
     return;
   }
-  const result = await adapter.healthCheck(candidate.slug);
+  let result;
+  try {
+    result = await adapter.healthCheck(candidate.slug);
+  } catch {
+    result = { status: "OFFLINE" as const, speedMs: null, errorMessage: providerDiagnostic("test") };
+  }
   const updated = await prisma.candidateModel.update({
     where: { id: candidate.id },
     data: { testStatus: result.status, speedMs: result.speedMs, errorMessage: result.errorMessage, lastChecked: new Date() },
@@ -373,7 +404,6 @@ adminRouter.post("/candidates/:id/approve", async (req: Request, res: Response) 
     for (const placement of placements) {
       await tx.modelRolePlacement.upsert({ where: { providerModelId_role: { providerModelId: providerModel.id, role: placement.role } }, update: { stars: placement.stars, priority: candidate.priority }, create: { providerModelId: providerModel.id, role: placement.role, stars: placement.stars, priority: candidate.priority } });
     }
-    await tx.candidateModel.update({ where: { id: candidate.id }, data: { reviewStatus: "APPROVED" } });
     return model;
   });
   res.status(201).json({ model: result, placements });

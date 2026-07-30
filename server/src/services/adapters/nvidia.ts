@@ -12,9 +12,15 @@ export class NvidiaAdapter extends OpenRouterAdapter {
     const models = await super.listModels();
     return models.map((model) => ({
       ...model,
-      // The public catalogue does not expose a reliable Free Endpoint flag.
-      isFree: false,
-      freeSource: "Requires administrator verification against NVIDIA API Catalog",
+      // NIM uses OpenAI-compatible catalog entries. Keep zero pricing and
+      // explicit `free` catalogue labels instead of downgrading every entry
+      // to UNKNOWN during discovery.
+      isFree: model.isFree || /(^|[-_:/ ])free($|[-_:/ ])/i.test(`${model.slug} ${model.name}`),
+      freeSource: model.isFree
+        ? model.freeSource
+        : /(^|[-_:/ ])free($|[-_:/ ])/i.test(`${model.slug} ${model.name}`)
+          ? "NVIDIA catalog free label"
+          : undefined,
     }));
   }
 }

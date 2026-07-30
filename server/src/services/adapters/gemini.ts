@@ -67,11 +67,10 @@ export class GeminiAdapter implements ProviderAdapter {
         };
       }
 
-      const errorBody = await response.text().catch(() => "No error body");
       return {
         status: response.status === 429 ? "DEGRADED" : "OFFLINE",
         speedMs: null,
-        errorMessage: `${response.status} ${response.statusText}: ${errorBody.slice(0, 200)}`,
+        errorMessage: `Provider request failed (${response.status})`,
       };
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {

@@ -74,11 +74,10 @@ export class OpenRouterAdapter implements ProviderAdapter {
 
       // Non-OK responses
       const status = mapHttpStatus(response.status);
-      const errorBody = await response.text().catch(() => "No error body");
       return {
         status,
         speedMs: null,
-        errorMessage: `${response.status} ${response.statusText}: ${errorBody.slice(0, 200)}`,
+        errorMessage: `Provider request failed (${response.status})`,
       };
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {

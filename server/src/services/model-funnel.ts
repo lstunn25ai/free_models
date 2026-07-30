@@ -1,4 +1,4 @@
-export type QuotaStatus = "FREE" | "LIMITED" | "UNKNOWN";
+export type QuotaStatus = "FREE" | "LIMITED" | "PAID" | "UNKNOWN";
 export type ModelRole = "OPUS" | "SONNET" | "HAIKU" | "FABLE" | "IMAGE" | "VIDEO" | "EMBEDDINGS" | "DEFAULT";
 
 export interface QuotaRuleInput {
@@ -11,17 +11,22 @@ export interface QuotaClassification {
   status: QuotaStatus;
   limit: string | null;
   period: string | null;
+  source: string | null;
 }
 
-export function classifyQuota(rule: QuotaRuleInput | undefined): QuotaClassification {
-  if (!rule || !["FREE", "LIMITED"].includes(rule.status)) {
-    return { status: "UNKNOWN", limit: null, period: null };
+export function classifyQuota(rule: QuotaRuleInput | undefined, catalog?: { isFree?: boolean; freeSource?: string }): QuotaClassification {
+  if (rule && ["FREE", "LIMITED", "PAID"].includes(rule.status)) {
+    return {
+      status: rule.status,
+      limit: rule.limit ?? null,
+      period: rule.period ?? null,
+      source: "Manual quota registry",
+    };
   }
-  return {
-    status: rule.status,
-    limit: rule.limit ?? null,
-    period: rule.period ?? null,
-  };
+  if (catalog?.isFree) {
+    return { status: "FREE", limit: null, period: null, source: catalog.freeSource ?? "Provider catalog free label" };
+  }
+  return { status: "UNKNOWN", limit: null, period: null, source: null };
 }
 
 export interface RoleSignals {

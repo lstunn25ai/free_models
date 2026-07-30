@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, KeyRound, Minus, Play, Plus, RefreshCw, Star } from "lucide-react";
+import { Check, Eye, KeyRound, Minus, Play, Plus, RefreshCw, Star } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusIndicator } from "@/components/health/StatusIndicator";
@@ -59,7 +59,7 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
   const { showToast } = useToast();
   const [selected, setSelected] = useState<Array<{ role: ModelCategory; stars: number }>>([]);
   const [open, setOpen] = useState(false);
-  const busy = actions.test.isPending || actions.approve.isPending || actions.reject.isPending;
+  const busy = actions.test.isPending || actions.approve.isPending || actions.updateMetadata.isPending;
   const canPublish = candidate.testStatus === "ONLINE" && ["FREE", "LIMITED"].includes(candidate.quotaStatus);
 
   const toggleRole = (role: ModelCategory, stars: number) => {
@@ -104,8 +104,15 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
         >
           Тест
         </Button>
-        <Button size="sm" variant="ghost" disabled={busy} aria-label="Отклонить" onClick={() => actions.reject.mutate(candidate.id)}>
-          <Minus className="h-4 w-4" />
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          aria-label={candidate.hidden ? "Вернуть" : "Скрыть"}
+          title={candidate.hidden ? "Вернуть в рабочую очередь" : "Скрыть из активной очереди"}
+          onClick={() => actions.updateMetadata.mutate({ id: candidate.id, body: { hidden: !candidate.hidden } })}
+        >
+          {candidate.hidden ? <Eye className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
         </Button>
       </div>
       <div className="relative">
@@ -114,6 +121,7 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
           disabled={busy || !canPublish || !candidate.roleMatches.length}
           leftIcon={<Plus className="h-3.5 w-3.5" />}
           onClick={() => setOpen((value) => !value)}
+          title={canPublish ? "Выбрать роли" : "Сначала выполните успешный тест модели"}
         >
           Добавить
         </Button>
@@ -152,6 +160,7 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
             </Button>
           </div>
         )}
+        {!canPublish && <p className="mt-1 text-[10px] text-ink-500">Добавление станет доступно после Online-теста.</p>}
       </div>
     </article>
   );
@@ -163,7 +172,7 @@ export function AdminPanel() {
   const { showToast } = useToast();
   const [providerSlug, setProviderSlug] = useState<string>();
   const [quota, setQuota] = useState<"ALL" | CandidateModel["quotaStatus"]>("ALL");
-  const [candidateView, setCandidateView] = useState<"FOCUS" | "ARCHIVE">("FOCUS");
+  const [candidateView, setCandidateView] = useState<"FOCUS" | "ARCHIVE" | "HIDDEN">("FOCUS");
   const [customUrl, setCustomUrl] = useState("");
   const [customKey, setCustomKey] = useState("");
   const [customModels, setCustomModels] = useState<Array<{ slug: string; name: string }>>([]);
@@ -176,9 +185,11 @@ export function AdminPanel() {
   const providers = providersQuery.data?.providers ?? [];
   const selectedProvider = providers.find((provider) => provider.slug === providerSlug);
   const candidates = (candidatesQuery.data?.candidates ?? []).filter((candidate) => {
-    if (candidate.reviewStatus !== "DISCOVERED" || candidate.hidden || (quota !== "ALL" && candidate.quotaStatus !== quota)) return false;
-    const isFocus = candidate.testStatus === "ONLINE" && ["FREE", "LIMITED"].includes(candidate.quotaStatus);
-    return candidateView === "FOCUS" ? isFocus : !isFocus;
+    if (!["DISCOVERED", "APPROVED"].includes(candidate.reviewStatus) || (quota !== "ALL" && candidate.quotaStatus !== quota)) return false;
+    if (candidateView === "HIDDEN") return candidate.hidden;
+    if (candidate.hidden) return false;
+    const isCandidateForTest = ["FREE", "LIMITED"].includes(candidate.quotaStatus);
+    return candidateView === "FOCUS" ? isCandidateForTest : !isCandidateForTest;
   });
 
   const discover = () => selectedProvider && actions.discover.mutate(selectedProvider.slug, {
@@ -255,16 +266,17 @@ export function AdminPanel() {
       <section className="mt-8">
         <div className="flex flex-wrap justify-between gap-3 mb-3">
           <div>
-            <h2 className="text-base font-medium text-ink-100">{candidateView === "FOCUS" ? "Прошли воронку" : "Paid / Unknown / Offline"}</h2>
+            <h2 className="text-base font-medium text-ink-100">{candidateView === "FOCUS" ? "Доступные кандидаты" : candidateView === "HIDDEN" ? "Скрытые кандидаты" : "Paid / Unknown / Offline"}</h2>
             <p className="text-xs text-ink-500 mt-1">
-              {candidateView === "FOCUS" ? "Только Online и Free/Limited. Эти модели можно добавить в рейтинг." : "Справочный архив: не публикуется и не расходует batch-тесты."}
+              {candidateView === "FOCUS" ? "Free/Limited: сначала массовый тест, после Online можно добавить в рейтинг." : candidateView === "HIDDEN" ? "Скрыты из рабочей очереди; история сохранена." : "Справочный архив: не публикуется и не расходует batch-тесты."}
             </p>
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant={candidateView === "FOCUS" ? "primary" : "secondary"} onClick={() => setCandidateView("FOCUS")}>Free / Limited</Button>
             <Button size="sm" variant={candidateView === "ARCHIVE" ? "primary" : "secondary"} onClick={() => setCandidateView("ARCHIVE")}>Paid / Unknown</Button>
+            <Button size="sm" variant={candidateView === "HIDDEN" ? "primary" : "secondary"} onClick={() => setCandidateView("HIDDEN")}>Скрытые</Button>
             <select value={quota} onChange={(event) => setQuota(event.target.value as typeof quota)} className="h-8 rounded-lg bg-ink-800/60 border border-ink-700/40 px-2 text-xs text-ink-200">
-              <option value="ALL">Все</option><option value="FREE">Free</option><option value="LIMITED">Limited</option><option value="UNKNOWN">Unknown</option>
+              <option value="ALL">Все</option><option value="FREE">Free</option><option value="LIMITED">Limited</option><option value="PAID">Paid</option><option value="UNKNOWN">Unknown</option>
             </select>
           </div>
         </div>

@@ -97,7 +97,7 @@ export interface CandidateModel {
   name: string;
   isFree: boolean;
   freeSource: string | null;
-  quotaStatus: "FREE" | "LIMITED" | "UNKNOWN";
+  quotaStatus: "FREE" | "LIMITED" | "PAID" | "UNKNOWN";
   quotaLimit: string | null;
   quotaPeriod: string | null;
   quotaSource: string | null;
