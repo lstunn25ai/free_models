@@ -35,9 +35,15 @@ function roleMatchesFor(slug: string, name: string, category?: string) {
   const add = (role: string, stars: number, reason: string) => {
     if (stars >= 3 && !matches.some((match) => match.role === role)) matches.push({ role, stars, reason });
   };
-  add(primary.role, Math.max(3, Math.min(5, Math.round(primary.score / 20))), primary.reason);
-  if (/(reason|think|coder|code|large|ultra)/.test(value)) add("OPUS", 4, "Reasoning or coding capability signal.");
-  if (/(reason|think|creative|write|story|large)/.test(value)) add("FABLE", 4, "Strong long-form and reasoning signal.");
+  if (primary.score >= 60) add(primary.role, Math.min(5, Math.round(primary.score / 20)), primary.reason);
+  const knownTopTier = /(deepseek.*(v4.*pro|r1)|glm[- ]?5(\.|-|$)|kimi[- ]?k(2\.5|26|3)|qwen3.*(235b|coder)|gemma[- ]?3.*27b|nemotron.*(super|ultra))/.test(value);
+  if (knownTopTier) {
+    add("OPUS", 5, "Known high-capability family; require successful task benchmark before approval.");
+    add("FABLE", 5, "Known high-capability family; require successful task benchmark before approval.");
+  } else {
+    if (/(reason|think|coder|code|ultra)/.test(value)) add("OPUS", 4, "Reasoning or coding signal; benchmark confirmation required.");
+    if (/(reason|think|creative|write|story)/.test(value)) add("FABLE", 4, "Long-form or reasoning signal; benchmark confirmation required.");
+  }
   if (/(code|coder|general|chat)/.test(value)) add("SONNET", 3, "General coding or chat signal.");
   if (/(vision|image|vl|visual)/.test(value)) add("IMAGE", 3, "Vision capability signal.");
   return matches.sort((left, right) => right.stars - left.stars || left.role.localeCompare(right.role));
@@ -266,24 +272,32 @@ adminRouter.post("/candidates/:id/quota", async (req: Request, res: Response) =>
 });
 
 adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => {
+  const providerSlug = typeof req.body?.provider === "string" ? req.body.provider : undefined;
   const candidates = await prisma.candidateModel.findMany({
-    where: { reviewStatus: "DISCOVERED", hidden: false, ...(typeof req.body?.provider === "string" ? { provider: { slug: req.body.provider } } : {}) },
+    where: { reviewStatus: "DISCOVERED", hidden: false, quotaStatus: { in: ["FREE", "LIMITED"] }, ...(providerSlug ? { provider: { slug: providerSlug } } : {}) },
     include: { provider: { select: { id: true, name: true, slug: true } } },
     take: 100,
     orderBy: { updatedAt: "asc" },
   });
-  const results = [];
-  for (const candidate of candidates) {
+  const results: Array<{ id: string; status: string; speedMs?: number | null; error?: string | null }> = [];
+  let cursor = 0;
+  const runOne = async (candidate: typeof candidates[number]) => {
     const adapter = getProviderAdapter(candidate.provider.slug);
     if (!adapter) {
       results.push({ id: candidate.id, status: "OFFLINE", error: "Provider is not configured" });
-      continue;
+      return;
     }
     const result = await adapter.healthCheck(candidate.slug);
     await prisma.candidateModel.update({ where: { id: candidate.id }, data: { testStatus: result.status, speedMs: result.speedMs, errorMessage: result.errorMessage, lastChecked: new Date() } });
     results.push({ id: candidate.id, status: result.status, speedMs: result.speedMs, error: result.errorMessage });
-  }
-  res.json({ totalChecked: results.length, results });
+  };
+  await Promise.all(Array.from({ length: Math.min(3, candidates.length) }, async () => {
+    while (cursor < candidates.length) {
+      const candidate = candidates[cursor++];
+      if (candidate) await runOne(candidate);
+    }
+  }));
+  res.json({ provider: providerSlug ?? null, totalChecked: results.length, results });
 });
 
 adminRouter.post("/candidates/:id/metadata", async (req: Request, res: Response) => {

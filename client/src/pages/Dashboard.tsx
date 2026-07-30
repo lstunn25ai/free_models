@@ -57,7 +57,7 @@ export function Dashboard() {
       </motion.div>
 
       {/* Provider reliability summary */}
-      {!isLoading && providers.length > 0 && (
+      {!isLoading && providers.filter((provider) => provider.isEnabled).length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -65,7 +65,7 @@ export function Dashboard() {
           className="mb-10 flex flex-wrap items-center gap-2"
         >
           <span className="text-xs text-ink-500 mr-1">Providers:</span>
-          {providers.map((p) => (
+          {providers.filter((provider) => provider.isEnabled).map((p) => (
             <span
               key={p.id}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
@@ -81,7 +81,7 @@ export function Dashboard() {
               />
               {p.name}
               <span className="text-ink-500 tabular-nums">
-                {p.totalModels - p.offlineModels}/{p.totalModels}
+                {p.workingCandidates}/{p.publishedModels}
               </span>
             </span>
           ))}

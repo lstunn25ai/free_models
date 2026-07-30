@@ -14,8 +14,9 @@ providersRouter.get("/", async (_req: Request, res: Response) => {
   const providers = await prisma.provider.findMany({
     include: {
       providerModels: {
-        select: { status: true },
+        select: { status: true, placements: { select: { id: true } } },
       },
+      candidates: { select: { testStatus: true, quotaStatus: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -23,6 +24,8 @@ providersRouter.get("/", async (_req: Request, res: Response) => {
   const result = providers.map((p: (typeof providers)[number]) => {
     const total = p.providerModels.length;
     const offline = p.providerModels.filter((pm: (typeof p.providerModels)[number]) => pm.status === "OFFLINE").length;
+    const workingCandidates = p.candidates.filter((candidate: (typeof p.candidates)[number]) => candidate.testStatus === "ONLINE" && ["FREE", "LIMITED"].includes(candidate.quotaStatus)).length;
+    const publishedModels = p.providerModels.filter((pm: (typeof p.providerModels)[number]) => pm.placements.length > 0).length;
     const isUnreliable = total > 0 && (offline / total) > 0.20;
 
     return {
@@ -32,6 +35,8 @@ providersRouter.get("/", async (_req: Request, res: Response) => {
       isEnabled: p.isEnabled,
       totalModels: total,
       offlineModels: offline,
+      workingCandidates,
+      publishedModels,
       isUnreliable,
     };
   });

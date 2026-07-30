@@ -73,5 +73,5 @@ export const TEST_PROMPTS: Record<string, string> = {
   IMAGE: "A cyberpunk cat wearing a top hat, digital art",
   VIDEO: "A cat playing piano, 5 seconds",
   EMBEDDINGS: "embedding test",
-  DEFAULT: "Hello, please respond with 'OK' to confirm you are working.",
+  DEFAULT: "Return exactly this JSON with no markdown: {\"sum\":391,\"reverse\":[3,2,1],\"reason\":\"one short sentence\"}.",
 };

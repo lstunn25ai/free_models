@@ -72,6 +72,8 @@ export interface ProviderWithReliability extends Provider {
   isEnabled: boolean;
   totalModels: number;
   offlineModels: number;
+  workingCandidates: number;
+  publishedModels: number;
   isUnreliable: boolean;
 }
 
