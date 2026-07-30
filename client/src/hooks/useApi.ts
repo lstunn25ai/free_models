@@ -49,12 +49,16 @@ export function useAdminActions() {
     qc.invalidateQueries({ queryKey: queryKeys.providers });
   };
   return {
-    setup: useMutation({ mutationFn: ({ password, setupToken }: { password: string; setupToken: string }) => api.setupAdmin(password, setupToken), onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminSession }) }),
     login: useMutation({ mutationFn: api.login, onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminSession }) }),
     logout: useMutation({ mutationFn: api.logout, onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminSession }) }),
+    changePassword: useMutation({ mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => api.changeAdminPassword(currentPassword, newPassword), onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminSession }) }),
     discover: useMutation({ mutationFn: api.discoverProvider, onSuccess: invalidate }),
+    discoverAll: useMutation({ mutationFn: api.discoverAllProviders, onSuccess: invalidate }),
     setFree: useMutation({ mutationFn: ({ id, isFree }: { id: string; isFree: boolean }) => api.setCandidateFree(id, isFree), onSuccess: invalidate }),
+    setQuota: useMutation({ mutationFn: ({ id, status, limit, period, source }: { id: string; status: import("@/lib/types").CandidateModel["quotaStatus"]; limit?: string; period?: string; source?: string }) => api.setCandidateQuota(id, status, limit, period, source), onSuccess: invalidate }),
     test: useMutation({ mutationFn: api.testCandidate, onSuccess: invalidate }),
+    testAll: useMutation({ mutationFn: api.testAllCandidates, onSuccess: invalidate }),
+    updateMetadata: useMutation({ mutationFn: ({ id, body }: { id: string; body: { category?: import("@/lib/types").ModelCategory; priority?: string; hidden?: boolean } }) => api.updateCandidateMetadata(id, body), onSuccess: invalidate }),
     approve: useMutation({ mutationFn: ({ id, category, stars }: { id: string; category: import("@/lib/types").ModelCategory; stars: number }) => api.approveCandidate(id, category, stars), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: api.rejectCandidate, onSuccess: invalidate }),
   };

@@ -28,7 +28,6 @@ const pageTransition = {
 
 export default function App() {
   const [page, setPage] = useState<Page>(() => window.location.pathname === "/admin" ? "admin" : "dashboard");
-  const [setupToken] = useState(() => new URLSearchParams(window.location.search).get("setup") ?? undefined);
 
   const navigate = (nextPage: Page) => {
     setPage(nextPage);
@@ -57,7 +56,7 @@ export default function App() {
             exit="exit"
             transition={pageTransition}
           >
-            {page === "dashboard" ? <Dashboard /> : <AdminPanel setupToken={setupToken} />}
+            {page === "dashboard" ? <Dashboard /> : <AdminPanel />}
           </motion.div>
         </AnimatePresence>
       </main>

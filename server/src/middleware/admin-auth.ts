@@ -3,14 +3,12 @@ import { promisify } from "node:util";
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../config/database.js";
 import { getConfig } from "../config/env.js";
+import { ADMIN_USERNAME, validateAdminPassword } from "../config/password-policy.js";
 
 const scrypt = promisify(scryptCallback);
 const COOKIE_NAME = "free_models_admin";
 const SESSION_TTL_SECONDS = 8 * 60 * 60;
-const SETUP_TTL_MS = 15 * 60_000;
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-let setupToken: string | undefined;
-let setupExpiresAt = 0;
 
 function readCookie(req: Request, name: string): string | undefined {
   const raw = req.headers.cookie;
@@ -90,18 +88,18 @@ async function getValidSession(req: Request): Promise<boolean> {
   return true;
 }
 
-function validatePassword(value: unknown): string | undefined {
-  if (typeof value !== "string" || value.length < 12 || value.length > 256) return undefined;
-  return value;
-}
-
-export async function initializeAdminSetup(): Promise<void> {
+export async function initializeAdminFromEnv(): Promise<void> {
   const existing = await prisma.adminCredential.findUnique({ where: { id: "owner" } });
   if (existing) return;
-  setupToken = randomBytes(32).toString("base64url");
-  setupExpiresAt = Date.now() + SETUP_TTL_MS;
-  console.info(`[SETUP] Initial admin link (valid for 15 minutes): /admin?setup=${setupToken}`);
-  console.info("[SETUP] Do not share this one-time path. It becomes invalid after setup or restart.");
+  const password = validateAdminPassword(getConfig().ADMIN_PASSWORD);
+  if (!password) {
+    throw new Error("ADMIN_PASSWORD must contain 12 to 256 characters before the first start");
+  }
+  await prisma.adminCredential.create({
+    data: { id: "owner", passwordHash: await hashPassword(password) },
+  }).catch((error: { code?: string }) => {
+    if (error.code !== "P2002") throw error;
+  });
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -123,42 +121,33 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
 export async function adminSession(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const initialized = Boolean(await prisma.adminCredential.findUnique({ where: { id: "owner" } }));
-    res.json({ authenticated: initialized && await getValidSession(req), initialized, setupRequired: !initialized });
+    res.json({ authenticated: initialized && await getValidSession(req), initialized, setupRequired: false, username: ADMIN_USERNAME });
   } catch (error) {
     next(error);
   }
 }
 
-export async function setupAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function changeAdminPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (!sameOrigin(req)) {
       res.status(403).json({ error: "Invalid request origin" });
       return;
     }
-    const password = validatePassword(req.body?.password);
-    const suppliedToken = typeof req.body?.setupToken === "string" ? req.body.setupToken : "";
-    if (!password) {
-      res.status(400).json({ error: "Password must contain 12 to 256 characters" });
+    const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+    const nextPassword = validateAdminPassword(req.body?.newPassword);
+    const credential = await prisma.adminCredential.findUnique({ where: { id: "owner" } });
+    if (!credential || !await verifyPassword(currentPassword, credential.passwordHash)) {
+      res.status(401).json({ error: "Current password is invalid" });
       return;
     }
-    if (!setupToken || Date.now() > setupExpiresAt || !safeEqual(suppliedToken, setupToken)) {
-      res.status(403).json({ error: "Initial setup link is invalid or expired" });
+    if (!nextPassword) {
+      res.status(400).json({ error: "New password must contain 12 to 256 characters" });
       return;
     }
-    const credential = await prisma.adminCredential.create({
-      data: { id: "owner", passwordHash: await hashPassword(password) },
-    }).catch((error: { code?: string }) => {
-      if (error.code === "P2002") return undefined;
-      throw error;
-    });
-    if (!credential) {
-      res.status(409).json({ error: "Administrator is already configured" });
-      return;
-    }
-    setupToken = undefined;
-    setupExpiresAt = 0;
+    await prisma.adminCredential.update({ where: { id: credential.id }, data: { passwordHash: await hashPassword(nextPassword) } });
+    await prisma.adminSession.deleteMany({ where: { credentialId: credential.id } });
     await createSession(res, credential.id);
-    res.status(201).end();
+    res.status(204).end();
   } catch (error) {
     next(error);
   }

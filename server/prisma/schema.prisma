@@ -62,7 +62,16 @@ model CandidateModel {
   name               String
   isFree             Boolean  @default(false)
   freeSource         String?  // e.g. "provider catalog" or "manual verification"
+  quotaStatus        String   @default("UNKNOWN") // FREE | LIMITED | UNKNOWN
+  quotaLimit         String?
+  quotaPeriod        String?
+  quotaSource        String?
+  quotaCheckedAt     DateTime?
   categorySuggestion String?
+  roleScore          Int?
+  roleReason         String?
+  priority           String?
+  hidden             Boolean  @default(false)
   reviewStatus       String   @default("DISCOVERED") // DISCOVERED | APPROVED | REJECTED
   testStatus         String   @default("PENDING")    // PENDING | ONLINE | OFFLINE | DEGRADED
   speedMs            Int?
@@ -76,6 +85,24 @@ model CandidateModel {
   @@unique([providerId, slug])
   @@index([providerId, reviewStatus])
   @@index([testStatus])
+  @@index([quotaStatus])
+}
+
+/// Manually maintained provider quota/free-tier registry. It is the source of truth for quotaStatus.
+model QuotaRule {
+  id          String   @id @default(cuid())
+  providerSlug String
+  modelPattern String
+  status      String   // FREE | LIMITED
+  limit       String?
+  period      String?
+  source      String?
+  notes       String?
+  checkedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([providerSlug, modelPattern])
+  @@index([providerSlug])
 }
 
 /// Exactly one local administrator. The plaintext password never reaches the database.

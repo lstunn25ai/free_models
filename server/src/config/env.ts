@@ -13,6 +13,7 @@ export interface EnvConfig {
 
   // Database
   DATABASE_URL: string;
+  ADMIN_PASSWORD: string | undefined;
 
   // Provider API keys (optional — each provider can be configured via UI)
   OPENROUTER_API_KEY: string | undefined;
@@ -57,6 +58,7 @@ export function loadEnv(): EnvConfig {
     PORT: parsePort(requireEnv("PORT")),
     NODE_ENV: (process.env.NODE_ENV as EnvConfig["NODE_ENV"]) ?? "development",
     DATABASE_URL: requireEnv("DATABASE_URL"),
+    ADMIN_PASSWORD: optionalEnv("ADMIN_PASSWORD"),
     OPENROUTER_API_KEY: optionalEnv("OPENROUTER_API_KEY"),
     GROQ_API_KEY: optionalEnv("GROQ_API_KEY"),
     GEMINI_API_KEY: optionalEnv("GEMINI_API_KEY"),

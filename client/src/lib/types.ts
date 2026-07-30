@@ -76,6 +76,7 @@ export interface AdminSession {
   authenticated: boolean;
   initialized: boolean;
   setupRequired: boolean;
+  username?: string;
 }
 
 export interface AdminProvider extends Provider {
@@ -91,7 +92,16 @@ export interface CandidateModel {
   name: string;
   isFree: boolean;
   freeSource: string | null;
+  quotaStatus: "FREE" | "LIMITED" | "UNKNOWN";
+  quotaLimit: string | null;
+  quotaPeriod: string | null;
+  quotaSource: string | null;
+  quotaCheckedAt: string | null;
   categorySuggestion: ModelCategory | null;
+  roleScore: number | null;
+  roleReason: string | null;
+  priority: string | null;
+  hidden: boolean;
   reviewStatus: "DISCOVERED" | "APPROVED" | "REJECTED";
   testStatus: HealthStatus;
   speedMs: number | null;

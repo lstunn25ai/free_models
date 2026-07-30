@@ -16,6 +16,7 @@
     "db:push": "npm run db:push --workspace=server",
     "db:seed": "npm run db:seed --workspace=server",
     "db:generate": "npm run db:generate --workspace=server",
+    "test:server": "node --import tsx --test server/tests/*.test.ts",
     "verify:prisma-volume-layout": "node scripts/verify-prisma-volume-layout.mjs"
   },
   "engines": {

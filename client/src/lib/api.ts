@@ -52,14 +52,18 @@ export const api = {
 
   // Private administration
   getAdminSession: () => request<import("./types").AdminSession>("/auth/session"),
-  setupAdmin: (password: string, setupToken: string) => request<void>("/auth/setup", { method: "POST", body: JSON.stringify({ password, setupToken }) }),
   login: (password: string) => request<void>("/auth/login", { method: "POST", body: JSON.stringify({ password }) }),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
+  changeAdminPassword: (currentPassword: string, newPassword: string) => request<void>("/auth/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
   getAdminProviders: () => request<{ providers: import("./types").AdminProvider[] }>("/admin/providers"),
   getCandidates: (provider?: string) => request<{ candidates: import("./types").CandidateModel[] }>(`/admin/candidates${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`),
   discoverProvider: (slug: string) => request<{ provider: string; imported: number; freeCandidates: number }>(`/admin/providers/${encodeURIComponent(slug)}/discover`, { method: "POST" }),
+  discoverAllProviders: () => request<{ results: Array<{ provider: string; imported: number; error?: string }> }>("/admin/providers/discover-all", { method: "POST" }),
   setCandidateFree: (id: string, isFree: boolean) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/free`, { method: "POST", body: JSON.stringify({ isFree }) }),
+  setCandidateQuota: (id: string, status: import("./types").CandidateModel["quotaStatus"], limit?: string, period?: string, source?: string) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/quota`, { method: "POST", body: JSON.stringify({ status, limit, period, source }) }),
   testCandidate: (id: string) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/test`, { method: "POST" }),
+  testAllCandidates: () => request<{ totalChecked: number; results: Array<{ id: string; status: string; speedMs?: number | null; error?: string | null }> }>("/admin/candidates/test-all", { method: "POST" }),
+  updateCandidateMetadata: (id: string, body: { category?: import("./types").ModelCategory; priority?: string; hidden?: boolean }) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/metadata`, { method: "POST", body: JSON.stringify(body) }),
   approveCandidate: (id: string, category: import("./types").ModelCategory, stars: number) => request<{ model: import("./types").Model }>(`/admin/candidates/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ category, stars }) }),
   rejectCandidate: (id: string) => request<void>(`/admin/candidates/${encodeURIComponent(id)}/reject`, { method: "POST" }),
 

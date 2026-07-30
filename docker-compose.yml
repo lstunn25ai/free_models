@@ -10,6 +10,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3000}
       DATABASE_URL: ${DATABASE_URL:-file:/app/data/dev.db}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
