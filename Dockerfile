@@ -24,11 +24,11 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/server/package.json ./server/package.json
 COPY --from=builder /app/server/dist ./server/dist
-COPY --from=builder /app/server/prisma ./server/prisma
+COPY --from=builder /app/server/prisma /app/prisma
 COPY --from=builder /app/client/dist ./client/dist
 
 RUN mkdir -p /app/server/prisma && chown -R appuser:appgroup /app
 USER appuser
 WORKDIR /app/server
 EXPOSE 3000
-CMD ["sh", "-c", "../node_modules/.bin/prisma db push --schema=prisma/schema.prisma && node dist/index.js"]
+CMD ["sh", "-c", "../node_modules/.bin/prisma db push --schema=/app/prisma/schema.prisma && node dist/index.js"]
