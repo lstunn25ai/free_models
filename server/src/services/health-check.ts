@@ -4,6 +4,8 @@ import { OpenRouterAdapter } from "./adapters/openrouter.js";
 import { GroqAdapter } from "./adapters/groq.js";
 import { GeminiAdapter } from "./adapters/gemini.js";
 import { NvidiaAdapter } from "./adapters/nvidia.js";
+import { OpenAICompatibleAdapter } from "./adapters/openai-compatible.js";
+import { OllamaAdapter } from "./adapters/ollama.js";
 import type { ProviderAdapter, HealthCheckResult } from "./provider-adapter.js";
 
 /**
@@ -39,6 +41,19 @@ function getAdapters(): Map<string, ProviderAdapter> {
   if (config.NVIDIA_NIM_API_KEY) {
     adapters.set("nvidia", new NvidiaAdapter(config.NVIDIA_NIM_API_KEY));
   }
+
+  const openAICompatibleProviders = [
+    ["deepseek", config.DEEPSEEK_API_KEY, "https://api.deepseek.com"],
+    ["huggingface", config.HUGGINGFACE_API_KEY, "https://router.huggingface.co/v1"],
+    ["kimi", config.KIMI_API_KEY, "https://api.moonshot.ai/v1"],
+    ["minimax", config.MINIMAX_API_KEY, "https://api.minimax.io/v1"],
+    ["opencode", config.OPENCODE_API_KEY, "https://console.opencode.ai/inference/openai/v1"],
+    ["zai", config.ZAI_API_KEY, "https://api.z.ai/api/paas/v4"],
+  ] as const;
+  for (const [slug, apiKey, baseUrl] of openAICompatibleProviders) {
+    if (apiKey) adapters.set(slug, new OpenAICompatibleAdapter(slug, apiKey, baseUrl));
+  }
+  if (config.OLLAMA_API_KEY) adapters.set("ollama", new OllamaAdapter(config.OLLAMA_API_KEY));
 
   adapterRegistry = adapters;
   return adapters;
