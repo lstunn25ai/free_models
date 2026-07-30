@@ -2,10 +2,12 @@ import { createApp } from "./app.js";
 import { getConfig } from "./config/env.js";
 import { bootstrapProviders } from "./services/provider-bootstrap.js";
 import { initializeAdminFromEnv } from "./middleware/admin-auth.js";
+import { backfillLegacyPlacements } from "./services/placement-backfill.js";
 
 async function main() {
   const config = getConfig();
   await bootstrapProviders();
+  await backfillLegacyPlacements();
   await initializeAdminFromEnv();
   const app = createApp();
 

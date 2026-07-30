@@ -42,10 +42,13 @@ export interface ProviderModel {
   lastChecked: string | null;
   provider: Provider;
   feedbackCount: number;
+  thumbsUp?: number;
+  thumbsDown?: number;
 }
 
 export interface Model {
   id: string;
+  placementId?: string;
   name: string;
   slug: string;
   category: ModelCategory;
@@ -109,6 +112,7 @@ export interface CandidateModel {
   lastChecked: string | null;
   discoveredAt: string;
   provider: Provider;
+  roleMatches: Array<{ role: ModelCategory; stars: number; reason: string }>;
 }
 
 export interface ProvidersResponse {

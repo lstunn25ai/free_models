@@ -29,8 +29,10 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -51,6 +53,7 @@ import type {
   ProviderWithReliability,
   RefreshResult,
 } from "@/lib/types";
+import { api } from "@/lib/api";
 
 interface ModelCardProps {
   model: Model;
@@ -102,8 +105,8 @@ function ProviderRow({
   // For MVP, we approximate: feedbackCount is total, assume 70/30 split if no detail.
   // In production, the FeedbackButtons trigger a refetch that populates this.
   const feedbackCount = pm.feedbackCount ?? 0;
-  const approxUp = Math.round(feedbackCount * 0.7);
-  const approxDown = feedbackCount - approxUp;
+  const approxUp = pm.thumbsUp ?? 0;
+  const approxDown = pm.thumbsDown ?? 0;
 
   return (
     <div className="border-t border-ink-800/40 first:border-t-0">
@@ -222,6 +225,8 @@ export function ModelCard({
   isRacing = false,
   raceResults = {},
 }: ModelCardProps) {
+  const queryClient = useQueryClient();
+  const removePlacement = useMutation({ mutationFn: api.removePlacement, onSuccess: () => queryClient.invalidateQueries({ queryKey: ["models"] }) });
   return (
     <Card padding="md" hover className="h-full">
       {/* Header */}
@@ -246,6 +251,7 @@ export function ModelCard({
               {model.priority}
             </Badge>
           )}
+          {model.placementId && <button type="button" className="text-ink-500 hover:text-danger" aria-label="Убрать из этой роли" title="Убрать из этой роли" disabled={removePlacement.isPending} onClick={() => removePlacement.mutate(model.placementId!)}><Trash2 className="h-3.5 w-3.5" /></button>}
         </div>
       </div>
 

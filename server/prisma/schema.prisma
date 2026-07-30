@@ -143,10 +143,28 @@ model ProviderModel {
 
   feedback   Feedback[]
   healthLogs HealthLog[]
+  placements ModelRolePlacement[]
 
   @@unique([modelId, providerId])
   @@index([providerId])
   @@index([status])
+}
+
+/// A manually approved appearance of a provider/model link in one dashboard role.
+/// A link can appear in several roles, each with its own fixed suitability stars.
+model ModelRolePlacement {
+  id              String   @id @default(cuid())
+  providerModelId String
+  role            String   // OPUS | SONNET | HAIKU | FABLE | IMAGE | VIDEO | EMBEDDINGS | DEFAULT
+  stars           Float    // 3.0-5.0; values below 3 are never published
+  priority        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  providerModel ProviderModel @relation(fields: [providerModelId], references: [id], onDelete: Cascade)
+
+  @@unique([providerModelId, role])
+  @@index([role, stars])
 }
 
 /// Individual user feedback entry — source of truth for the Health Circle

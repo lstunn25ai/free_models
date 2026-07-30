@@ -64,8 +64,11 @@ export const api = {
   testCandidate: (id: string) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/test`, { method: "POST" }),
   testAllCandidates: () => request<{ totalChecked: number; results: Array<{ id: string; status: string; speedMs?: number | null; error?: string | null }> }>("/admin/candidates/test-all", { method: "POST" }),
   updateCandidateMetadata: (id: string, body: { category?: import("./types").ModelCategory; priority?: string; hidden?: boolean }) => request<{ candidate: import("./types").CandidateModel }>(`/admin/candidates/${encodeURIComponent(id)}/metadata`, { method: "POST", body: JSON.stringify(body) }),
-  approveCandidate: (id: string, category: import("./types").ModelCategory, stars: number) => request<{ model: import("./types").Model }>(`/admin/candidates/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ category, stars }) }),
+  approveCandidate: (id: string, placements: Array<{ role: import("./types").ModelCategory; stars: number }>) => request<{ model: import("./types").Model }>(`/admin/candidates/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ placements }) }),
   rejectCandidate: (id: string) => request<void>(`/admin/candidates/${encodeURIComponent(id)}/reject`, { method: "POST" }),
+  removePlacement: (id: string) => request<void>(`/admin/placements/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  discoverCustom: (baseUrl: string, apiKey: string) => request<{ models: Array<{ slug: string; name: string; roleMatches: Array<{ role: import("./types").ModelCategory; stars: number; reason: string }> }> }>("/admin/custom/discover", { method: "POST", body: JSON.stringify({ baseUrl, apiKey }) }),
+  testCustom: (baseUrl: string, apiKey: string, model: string) => request<{ status: "ONLINE" | "OFFLINE"; speedMs?: number; error?: string }>("/admin/custom/test", { method: "POST", body: JSON.stringify({ baseUrl, apiKey, model }) }),
 
   // Models
   getModels: () =>
@@ -95,6 +98,7 @@ export const api = {
     request<import("./types").FeedbackResponse>(
       `/feedback/${providerModelId}`,
     ),
+  getProviderStats: () => request<{ providers: Array<{ id: string; name: string; slug: string; total: number; online: number; failed: number; reliability: number; up: number; down: number }> }>("/feedback/stats/providers"),
 
   createFeedback: (body: import("./types").CreateFeedbackBody) =>
     request<{ feedback: { id: string; type: string; createdAt: string } }>(

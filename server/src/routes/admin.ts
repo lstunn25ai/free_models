@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { lookup } from "node:dns/promises";
 import { prisma } from "../config/database.js";
 import { requireAdmin } from "../middleware/admin-auth.js";
 import { getProviderAdapter } from "../services/health-check.js";
@@ -27,6 +28,21 @@ function roleFor(slug: string, name: string, category?: string) {
   return recommendRole({ slug, name, modality: category === "IMAGE" ? "vision" : undefined });
 }
 
+function roleMatchesFor(slug: string, name: string, category?: string) {
+  const primary = roleFor(slug, name, category);
+  const value = `${slug} ${name}`.toLowerCase();
+  const matches: Array<{ role: string; stars: number; reason: string }> = [];
+  const add = (role: string, stars: number, reason: string) => {
+    if (stars >= 3 && !matches.some((match) => match.role === role)) matches.push({ role, stars, reason });
+  };
+  add(primary.role, Math.max(3, Math.min(5, Math.round(primary.score / 20))), primary.reason);
+  if (/(reason|think|coder|code|large|ultra)/.test(value)) add("OPUS", 4, "Reasoning or coding capability signal.");
+  if (/(reason|think|creative|write|story|large)/.test(value)) add("FABLE", 4, "Strong long-form and reasoning signal.");
+  if (/(code|coder|general|chat)/.test(value)) add("SONNET", 3, "General coding or chat signal.");
+  if (/(vision|image|vl|visual)/.test(value)) add("IMAGE", 3, "Vision capability signal.");
+  return matches.sort((left, right) => right.stars - left.stars || left.role.localeCompare(right.role));
+}
+
 function serializeCandidate(candidate: {
   id: string; slug: string; name: string; isFree: boolean; freeSource: string | null;
   quotaStatus: string; quotaLimit: string | null; quotaPeriod: string | null; quotaSource: string | null; quotaCheckedAt: Date | null;
@@ -39,6 +55,7 @@ function serializeCandidate(candidate: {
     lastChecked: candidate.lastChecked?.toISOString() ?? null,
     quotaCheckedAt: candidate.quotaCheckedAt?.toISOString() ?? null,
     discoveredAt: candidate.discoveredAt.toISOString(),
+    roleMatches: roleMatchesFor(candidate.slug, candidate.name, candidate.categorySuggestion ?? undefined),
   };
 }
 
@@ -141,6 +158,53 @@ adminRouter.post("/providers/:slug/discover", async (req: Request, res: Response
     imported++;
   }
   res.json({ provider: slug, imported, freeCandidates: discovered.filter((model) => model.isFree).length });
+});
+
+function isPrivateAddress(address: string): boolean {
+  return /^(127\\.|0\\.|10\\.|192\\.168\\.|169\\.254\\.|172\\.(1[6-9]|2\\d|3[01])\\.|::1$|fc|fd|fe80:)/i.test(address);
+}
+
+async function safeCustomBaseUrl(raw: unknown): Promise<URL | undefined> {
+  if (typeof raw !== "string" || raw.length > 300) return undefined;
+  try {
+    const url = new URL(raw);
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password || /^(localhost|127\\.|0\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)/.test(url.hostname)) return undefined;
+    const resolved = await lookup(url.hostname, { all: true, verbatim: true });
+    if (!resolved.length || resolved.some((entry) => isPrivateAddress(entry.address))) return undefined;
+    return url;
+  } catch { return undefined; }
+}
+
+async function customFetch(url: URL, key: string, path: string, init?: RequestInit): Promise<globalThis.Response> {
+  const target = new URL(path, url.href.endsWith("/") ? url.href : `${url.href}/`);
+  return fetch(target, { ...init, signal: AbortSignal.timeout(12_000), headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+}
+
+// Session-only OpenAI-compatible custom API discovery. The key is accepted for this request only.
+adminRouter.post("/custom/discover", async (req: Request, res: Response) => {
+  const baseUrl = await safeCustomBaseUrl(req.body?.baseUrl);
+  const apiKey = typeof req.body?.apiKey === "string" && req.body.apiKey.length <= 4096 ? req.body.apiKey : "";
+  if (!baseUrl || !apiKey) { res.status(400).json({ error: "A valid public base URL and API key are required" }); return; }
+  try {
+    const response = await customFetch(baseUrl, apiKey, "models");
+    if (!response.ok) { res.status(502).json({ error: "Custom provider rejected model discovery" }); return; }
+    const body = await response.json() as { data?: Array<{ id?: string; name?: string }> };
+    const models = (body.data ?? []).flatMap((item) => typeof item.id === "string" && item.id.length <= 200 ? [{ slug: item.id, name: typeof item.name === "string" ? item.name : item.id, roleMatches: roleMatchesFor(item.id, item.name ?? item.id) }] : []);
+    res.json({ models });
+  } catch { res.status(502).json({ error: "Custom provider is unavailable" }); }
+});
+
+adminRouter.post("/custom/test", async (req: Request, res: Response) => {
+  const baseUrl = await safeCustomBaseUrl(req.body?.baseUrl);
+  const apiKey = typeof req.body?.apiKey === "string" && req.body.apiKey.length <= 4096 ? req.body.apiKey : "";
+  const model = typeof req.body?.model === "string" && req.body.model.length <= 200 ? req.body.model : "";
+  if (!baseUrl || !apiKey || !model) { res.status(400).json({ error: "A valid base URL, API key and model are required" }); return; }
+  const startedAt = Date.now();
+  try {
+    const response = await customFetch(baseUrl, apiKey, "chat/completions", { method: "POST", body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 4, temperature: 0 }) });
+    if (!response.ok) { res.status(502).json({ status: "OFFLINE", error: "Custom model did not accept the test" }); return; }
+    res.json({ status: "ONLINE", speedMs: Date.now() - startedAt });
+  } catch { res.status(502).json({ status: "OFFLINE", error: "Custom model is unavailable" }); }
 });
 
 adminRouter.post("/providers/discover-all", async (_req: Request, res: Response) => {
@@ -258,10 +322,14 @@ adminRouter.post("/candidates/:id/test", async (req: Request, res: Response) => 
 });
 
 adminRouter.post("/candidates/:id/approve", async (req: Request, res: Response) => {
-  const category = typeof req.body?.category === "string" ? req.body.category.toUpperCase() : "";
-  const stars = typeof req.body?.stars === "number" ? req.body.stars : 3;
-  if (!CATEGORIES.includes(category as (typeof CATEGORIES)[number]) || !Number.isFinite(stars) || stars < 3 || stars > 5) {
-    res.status(400).json({ error: "Invalid category or stars" });
+  const rawPlacements: Array<{ role?: unknown; stars?: unknown }> = Array.isArray(req.body?.placements) ? req.body.placements : [{ role: req.body?.category, stars: req.body?.stars }];
+  const placements = rawPlacements.flatMap((placement) => {
+    const role = typeof placement?.role === "string" ? placement.role.toUpperCase() : "";
+    const stars = typeof placement?.stars === "number" ? placement.stars : 0;
+    return CATEGORIES.includes(role as (typeof CATEGORIES)[number]) && Number.isFinite(stars) && stars >= 3 && stars <= 5 ? [{ role, stars }] : [];
+  });
+  if (!placements.length || placements.length !== rawPlacements.length || new Set(placements.map((placement) => placement.role)).size !== placements.length) {
+    res.status(400).json({ error: "At least one unique role with 3 to 5 stars is required" });
     return;
   }
   const candidate = await prisma.candidateModel.findUnique({
@@ -277,20 +345,31 @@ adminRouter.post("/candidates/:id/approve", async (req: Request, res: Response) 
     return;
   }
   const result = await prisma.$transaction(async (tx) => {
+    const primary = placements[0]!;
     const model = await tx.model.upsert({
       where: { slug: candidate.slug },
-      update: { name: candidate.name, category, stars, priority: candidate.priority },
-      create: { name: candidate.name, slug: candidate.slug, category, stars, priority: candidate.priority },
+      update: { name: candidate.name, category: primary.role, stars: primary.stars, priority: candidate.priority },
+      create: { name: candidate.name, slug: candidate.slug, category: primary.role, stars: primary.stars, priority: candidate.priority },
     });
-    await tx.providerModel.upsert({
+    const providerModel = await tx.providerModel.upsert({
       where: { modelId_providerId: { modelId: model.id, providerId: candidate.providerId } },
       update: { status: "ONLINE", speedMs: candidate.speedMs, errorMessage: null, lastChecked: candidate.lastChecked },
       create: { modelId: model.id, providerId: candidate.providerId, status: "ONLINE", speedMs: candidate.speedMs, lastChecked: candidate.lastChecked },
     });
+    for (const placement of placements) {
+      await tx.modelRolePlacement.upsert({ where: { providerModelId_role: { providerModelId: providerModel.id, role: placement.role } }, update: { stars: placement.stars, priority: candidate.priority }, create: { providerModelId: providerModel.id, role: placement.role, stars: placement.stars, priority: candidate.priority } });
+    }
     await tx.candidateModel.update({ where: { id: candidate.id }, data: { reviewStatus: "APPROVED" } });
     return model;
   });
-  res.status(201).json({ model: result });
+  res.status(201).json({ model: result, placements });
+});
+
+adminRouter.delete("/placements/:id", async (req: Request, res: Response) => {
+  const placement = await prisma.modelRolePlacement.findUnique({ where: { id: req.params.id } });
+  if (!placement) { res.status(404).json({ error: "Placement not found" }); return; }
+  await prisma.modelRolePlacement.delete({ where: { id: placement.id } });
+  res.status(204).end();
 });
 
 adminRouter.post("/candidates/:id/reject", async (req: Request, res: Response) => {

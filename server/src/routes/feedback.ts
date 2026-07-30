@@ -52,6 +52,20 @@ feedbackRouter.post("/", requireAdmin, async (req: Request, res: Response) => {
   res.status(201).json({ feedback });
 });
 
+feedbackRouter.get("/stats/providers", requireAdmin, async (_req: Request, res: Response) => {
+  const providers = await prisma.provider.findMany({
+    include: { providerModels: { include: { feedback: { select: { type: true } } } } },
+    orderBy: { name: "asc" },
+  });
+  res.json({ providers: providers.map((provider) => {
+    const links = provider.providerModels;
+    const up = links.flatMap((link) => link.feedback).filter((entry) => entry.type === "UP").length;
+    const down = links.flatMap((link) => link.feedback).filter((entry) => entry.type === "DOWN").length;
+    const online = links.filter((link) => link.status === "ONLINE").length;
+    return { id: provider.id, name: provider.name, slug: provider.slug, total: links.length, online, failed: links.length - online, reliability: links.length ? Math.round((online / links.length) * 1000) / 10 : 0, up, down };
+  }) });
+});
+
 /**
  * GET /api/feedback/:providerModelId
  * Returns the feedback history for a provider→model link.

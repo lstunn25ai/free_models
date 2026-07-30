@@ -1,65 +1,21 @@
-/**
- * App — root component.
- *
- * Manages page navigation (Dashboard / Admin) with animated transitions.
- * Wraps everything in ToastProvider for global toast access.
- * Renders the mesh-gradient background and floating Navbar.
- */
-
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "@/components/layout/Navbar";
 import { Dashboard } from "@/pages/Dashboard";
 import { AdminPanel } from "@/pages/AdminPanel";
+import { Statistics } from "@/pages/Statistics";
 import { ToastProvider } from "@/components/ui/Toast";
+import { useAdminSession } from "@/hooks/useApi";
 
-type Page = "dashboard" | "admin";
+export type Page = "rating" | "selection" | "statistics";
+const routes: Record<Page, string> = { rating: "/", selection: "/selection", statistics: "/statistics" };
+function initialPage(): Page { return window.location.pathname === "/statistics" ? "statistics" : window.location.pathname === "/selection" || window.location.pathname === "/admin" ? "selection" : "rating"; }
 
-const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-};
-
-const pageTransition = {
-  duration: 0.3,
-  ease: [0.16, 1, 0.3, 1] as const,
-};
-
-export default function App() {
-  const [page, setPage] = useState<Page>(() => window.location.pathname === "/admin" ? "admin" : "dashboard");
-
-  const navigate = (nextPage: Page) => {
-    setPage(nextPage);
-    window.history.pushState({}, "", nextPage === "admin" ? "/admin" : "/");
-  };
-
-  return (
-    <ToastProvider>
-      {/* Background mesh gradient — fixed, non-interactive */}
-      <div
-        className="fixed inset-0 bg-mesh pointer-events-none"
-        aria-hidden="true"
-      />
-
-      {/* Navbar */}
-      <Navbar current={page} onNavigate={navigate} />
-
-      {/* Page content */}
-      <main className="relative">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={page}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={pageTransition}
-          >
-            {page === "dashboard" ? <Dashboard /> : <AdminPanel />}
-          </motion.div>
-        </AnimatePresence>
-      </main>
-    </ToastProvider>
-  );
+function Shell() {
+  const [page, setPage] = useState<Page>(initialPage); const session = useAdminSession();
+  const navigate = (next: Page) => { setPage(next); window.history.pushState({}, "", routes[next]); };
+  if (session.isLoading) return <div className="min-h-screen bg-mesh" />;
+  if (!session.data?.authenticated) return <AdminPanel />;
+  return <><div className="fixed inset-0 bg-mesh pointer-events-none" aria-hidden="true" /><Navbar current={page} onNavigate={navigate} /><main className="relative"><AnimatePresence mode="wait"><motion.div key={page} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>{page === "rating" ? <Dashboard /> : page === "selection" ? <AdminPanel /> : <Statistics />}</motion.div></AnimatePresence></main></>;
 }
+export default function App() { return <ToastProvider><Shell /></ToastProvider>; }

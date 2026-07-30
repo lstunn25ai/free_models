@@ -59,7 +59,7 @@ export function useAdminActions() {
     test: useMutation({ mutationFn: api.testCandidate, onSuccess: invalidate }),
     testAll: useMutation({ mutationFn: api.testAllCandidates, onSuccess: invalidate }),
     updateMetadata: useMutation({ mutationFn: ({ id, body }: { id: string; body: { category?: import("@/lib/types").ModelCategory; priority?: string; hidden?: boolean } }) => api.updateCandidateMetadata(id, body), onSuccess: invalidate }),
-    approve: useMutation({ mutationFn: ({ id, category, stars }: { id: string; category: import("@/lib/types").ModelCategory; stars: number }) => api.approveCandidate(id, category, stars), onSuccess: invalidate }),
+    approve: useMutation({ mutationFn: ({ id, placements }: { id: string; placements: Array<{ role: import("@/lib/types").ModelCategory; stars: number }> }) => api.approveCandidate(id, placements), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: api.rejectCandidate, onSuccess: invalidate }),
   };
 }

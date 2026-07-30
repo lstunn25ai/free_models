@@ -30,15 +30,11 @@ refreshRouter.post("/category/:category", requireAdmin, async (req: Request, res
   }
 
   // Fetch all provider→model links for this category
-  const providerModels = await prisma.providerModel.findMany({
-    where: {
-      model: { category: categoryUpper as any },
-    },
-    include: {
-      model: true,
-      provider: true,
-    },
+  const placements = await prisma.modelRolePlacement.findMany({
+    where: { role: categoryUpper },
+    include: { providerModel: { include: { model: true, provider: true } } },
   });
+  const providerModels = placements.map((placement) => placement.providerModel);
 
   if (providerModels.length === 0) {
     res.json({ message: "No models in this category", results: [] });
