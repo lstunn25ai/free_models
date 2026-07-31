@@ -2,9 +2,11 @@ import { Router, type Request, type Response } from "express";
 import { lookup } from "node:dns/promises";
 import { prisma } from "../config/database.js";
 import { requireAdmin } from "../middleware/admin-auth.js";
-import { getProviderAdapter } from "../services/health-check.js";
+import { getProviderAdapter, getProviderCredentialStatus } from "../services/health-check.js";
 import { classifyQuota, recommendRole, type QuotaStatus } from "../services/model-funnel.js";
 import type { DiscoveredModel } from "../services/provider-adapter.js";
+import { availableQuotaWhere, parseBatchRequest } from "../services/batch-test-scope.js";
+import { diagnoseProviderError } from "../services/provider-diagnostic.js";
 
 const CATEGORIES = ["OPUS", "SONNET", "HAIKU", "FABLE", "IMAGE", "VIDEO", "EMBEDDINGS", "DEFAULT"] as const;
 
@@ -101,21 +103,30 @@ adminRouter.get("/providers", async (_req: Request, res: Response) => {
     include: { _count: { select: { candidates: true, providerModels: true } } },
     orderBy: { name: "asc" },
   });
-  res.json({ providers: providers.map((provider) => ({
-    id: provider.id,
-    name: provider.name,
-    slug: provider.slug,
-    configured: Boolean(getProviderAdapter(provider.slug)),
-    isEnabled: provider.isEnabled,
-    candidateCount: provider._count.candidates,
-    approvedModelCount: provider._count.providerModels,
-  })) });
+  res.json({ providers: providers.map((provider) => {
+    const credential = getProviderCredentialStatus(provider.slug);
+    return {
+      id: provider.id,
+      name: provider.name,
+      slug: provider.slug,
+      configured: credential.usable,
+      credentialPresent: credential.present,
+      diagnostic: credential.diagnostic,
+      isEnabled: provider.isEnabled,
+      candidateCount: provider._count.candidates,
+      approvedModelCount: provider._count.providerModels,
+    };
+  }) });
 });
 
 adminRouter.get("/candidates", async (req: Request, res: Response) => {
   const providerSlug = typeof req.query.provider === "string" ? req.query.provider : undefined;
+  if (!providerSlug) {
+    res.status(400).json({ error: "Select one provider before loading candidates" });
+    return;
+  }
   const candidates = await prisma.candidateModel.findMany({
-    where: providerSlug ? { provider: { slug: providerSlug } } : undefined,
+    where: { provider: { slug: providerSlug } },
     include: { provider: { select: { id: true, name: true, slug: true } } },
     orderBy: [{ testStatus: "asc" }, { name: "asc" }],
   });
@@ -137,8 +148,9 @@ adminRouter.post("/providers/:slug/discover", async (req: Request, res: Response
   let discovered;
   try {
     discovered = await adapter.listModels();
-  } catch {
-    res.status(502).json({ error: providerDiagnostic("discovery") });
+  } catch (error) {
+    const diagnostic = diagnoseProviderError(error);
+    res.status(502).json({ error: `${diagnostic.message} ${diagnostic.action}`, diagnostic });
     return;
   }
   let imported = 0;
@@ -295,9 +307,7 @@ adminRouter.post("/candidates/:id/quota", async (req: Request, res: Response) =>
 
 adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => {
   const providerSlug = typeof req.body?.provider === "string" ? req.body.provider : undefined;
-  const scope = req.body?.scope === "ALL" ? "ALL" : "AVAILABLE";
-  const filter = ["ALL", "FOCUS", "ARCHIVE", "HIDDEN"].includes(req.body?.filter) ? req.body.filter as "ALL" | "FOCUS" | "ARCHIVE" | "HIDDEN" : undefined;
-  const quota = ["ALL", "FREE", "LIMITED", "PAID", "UNKNOWN"].includes(req.body?.quota) ? req.body.quota as QuotaStatus | "ALL" : "ALL";
+  const { scope, filter, quota } = parseBatchRequest(req.body);
   if (!providerSlug) {
     res.status(400).json({ error: "Select one configured provider before running a batch test" });
     return;
@@ -319,7 +329,7 @@ adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => 
       reviewStatus: { in: ["DISCOVERED", "APPROVED"] },
       ...filterWhere,
       provider: { slug: providerSlug },
-      ...(scope === "AVAILABLE" ? { quotaStatus: { in: ["FREE", "LIMITED"] } } : {}),
+      ...availableQuotaWhere(scope),
       ...(quota !== "ALL" ? { quotaStatus: quota } : {}),
     },
     include: { provider: { select: { id: true, name: true, slug: true } } },
@@ -349,6 +359,11 @@ adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => 
     }
   }));
   res.json({ provider: providerSlug, scope: filter ? "VISIBLE" : scope, totalChecked: results.length, results });
+});
+
+adminRouter.post("/system/restart", (_req: Request, res: Response) => {
+  res.status(202).json({ restarting: true });
+  setTimeout(() => process.kill(process.pid, "SIGTERM"), 250).unref();
 });
 
 adminRouter.post("/candidates/:id/metadata", async (req: Request, res: Response) => {

@@ -86,6 +86,8 @@ export interface AdminSession {
 
 export interface AdminProvider extends Provider {
   configured: boolean;
+  credentialPresent: boolean;
+  diagnostic: string | null;
   isEnabled: boolean;
   candidateCount: number;
   approvedModelCount: number;

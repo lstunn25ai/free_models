@@ -69,6 +69,7 @@ export const api = {
   removePlacement: (id: string) => request<void>(`/admin/placements/${encodeURIComponent(id)}`, { method: "DELETE" }),
   discoverCustom: (baseUrl: string, apiKey: string) => request<{ models: Array<{ slug: string; name: string; roleMatches: Array<{ role: import("./types").ModelCategory; stars: number; reason: string }> }> }>("/admin/custom/discover", { method: "POST", body: JSON.stringify({ baseUrl, apiKey }) }),
   testCustom: (baseUrl: string, apiKey: string, model: string) => request<{ status: "ONLINE" | "OFFLINE"; speedMs?: number; error?: string }>("/admin/custom/test", { method: "POST", body: JSON.stringify({ baseUrl, apiKey, model }) }),
+  restartServer: () => request<{ restarting: boolean }>("/admin/system/restart", { method: "POST" }),
 
   // Models
   getModels: () =>

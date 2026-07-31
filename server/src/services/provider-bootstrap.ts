@@ -13,6 +13,8 @@ const PROVIDERS = [
   { slug: "opencode", name: "OpenCode Console", baseUrl: "https://console.opencode.ai/inference/openai/v1" },
   { slug: "zai", name: "Z.AI", baseUrl: "https://api.z.ai/api/paas/v4" },
   { slug: "ollama", name: "Ollama Cloud", baseUrl: "https://ollama.com" },
+  { slug: "longcat", name: "LongCat", baseUrl: "https://api.longcat.chat/openai/v1" },
+  { slug: "qoder", name: "Qoder Cloud", baseUrl: "https://api.qoder.com" },
 ] as const;
 
 export async function bootstrapProviders(): Promise<void> {

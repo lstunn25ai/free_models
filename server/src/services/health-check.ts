@@ -54,6 +54,9 @@ function getAdapters(): Map<string, ProviderAdapter> {
     if (apiKey) adapters.set(slug, new OpenAICompatibleAdapter(slug, apiKey, baseUrl));
   }
   if (config.OLLAMA_API_KEY) adapters.set("ollama", new OllamaAdapter(config.OLLAMA_API_KEY));
+  if (config.LONGCAT_API_KEY) {
+    adapters.set("longcat", new OpenAICompatibleAdapter("longcat", config.LONGCAT_API_KEY, "https://api.longcat.chat/openai/v1"));
+  }
 
   adapterRegistry = adapters;
   return adapters;
@@ -61,6 +64,26 @@ function getAdapters(): Map<string, ProviderAdapter> {
 
 export function getProviderAdapter(slug: string): ProviderAdapter | undefined {
   return getAdapters().get(slug);
+}
+
+export function getProviderCredentialStatus(slug: string): {
+  present: boolean;
+  usable: boolean;
+  diagnostic: string | null;
+} {
+  const config = getConfig();
+  if (slug === "qoder") {
+    const present = Boolean(config.QODER_API_KEY);
+    return {
+      present,
+      usable: false,
+      diagnostic: present
+        ? "Qoder credential найден, но это Cloud/Teams API, а не OpenAI-compatible inference API. Для теста моделей нужен отдельный Qoder Cloud Agent adapter и environment ID."
+        : null,
+    };
+  }
+  const usable = Boolean(getProviderAdapter(slug));
+  return { present: usable, usable, diagnostic: null };
 }
 
 /**

@@ -28,6 +28,8 @@ export interface EnvConfig {
   CLOUDFLARE_API_TOKEN: string | undefined;
   ZAI_API_KEY: string | undefined;
   OLLAMA_API_KEY: string | undefined;
+  QODER_API_KEY: string | undefined;
+  LONGCAT_API_KEY: string | undefined;
 }
 
 function requireEnv(key: string): string {
@@ -71,6 +73,8 @@ export function loadEnv(): EnvConfig {
     CLOUDFLARE_API_TOKEN: optionalEnv("CLOUDFLARE_API_TOKEN"),
     ZAI_API_KEY: optionalEnv("ZAI_API_KEY"),
     OLLAMA_API_KEY: optionalEnv("OLLAMA_API_KEY"),
+    QODER_API_KEY: optionalEnv("QODER_API_KEY"),
+    LONGCAT_API_KEY: optionalEnv("LONGCAT_API_KEY"),
   };
 }
 

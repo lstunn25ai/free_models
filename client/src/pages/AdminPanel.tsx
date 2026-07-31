@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Eye, EyeOff, KeyRound, Play, Plus, RefreshCw, Star } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, Play, Plus, Power, RefreshCw, Star } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusIndicator } from "@/components/health/StatusIndicator";
@@ -183,6 +183,7 @@ export function AdminPanel() {
   const [customKey, setCustomKey] = useState("");
   const [customModels, setCustomModels] = useState<Array<{ slug: string; name: string }>>([]);
   const [customBusy, setCustomBusy] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
   const providersQuery = useAdminProviders(Boolean(session.data?.authenticated));
   const candidatesQuery = useCandidates(Boolean(session.data?.authenticated), providerSlug);
 
@@ -229,6 +230,7 @@ export function AdminPanel() {
 
   const discoverAndTest = () => {
     if (!selectedProvider) return;
+    setProviderError(null);
     actions.discover.mutate(selectedProvider.slug, {
       onSuccess: (result) => {
         showToast({ title: `Моделей обнаружено: ${result.imported}. Запускаю первичный тест…`, variant: "success" });
@@ -237,17 +239,30 @@ export function AdminPanel() {
           onError: () => showToast({ title: "Discovery завершён, но первичный тест не выполнен", variant: "error" }),
         });
       },
-      onError: () => showToast({ title: "Discovery не выполнен", variant: "error" }),
+      onError: (error) => {
+        const message = error instanceof Error ? error.message : "Discovery не выполнен";
+        setProviderError(message);
+        showToast({ title: message, variant: "error" });
+      },
     });
   };
 
   const testVisible = () => {
     if (!selectedProvider) return;
-    const needsConfirmation = candidateView === "ARCHIVE" || candidateView === "ALL" || quota === "PAID" || quota === "UNKNOWN";
-    if (needsConfirmation && !window.confirm("Будут отправлены короткие тестовые запросы моделям текущего списка, включая Paid/Unknown. Продолжить?")) return;
-    actions.testAll.mutate({ provider: selectedProvider.slug, scope: "VISIBLE", filter: candidateView, quota, confirmPaidUnknown: needsConfirmation }, {
+    actions.testAll.mutate({ provider: selectedProvider.slug, scope: "VISIBLE", filter: candidateView, quota, confirmPaidUnknown: true }, {
       onSuccess: (result) => showToast({ title: `Проверено моделей: ${result.totalChecked}`, variant: "success" }),
-      onError: () => showToast({ title: "Групповой тест не выполнен", variant: "error" }),
+      onError: (error) => showToast({ title: error instanceof Error ? error.message : "Групповой тест не выполнен", variant: "error" }),
+    });
+  };
+
+  const restartServer = () => {
+    if (!window.confirm("Перезапустить контейнер приложения? Текущие запросы будут прерваны.")) return;
+    actions.restartServer.mutate(undefined, {
+      onSuccess: () => {
+        showToast({ title: "Сервер перезапускается", variant: "success" });
+        window.setTimeout(() => window.location.reload(), 5000);
+      },
+      onError: (error) => showToast({ title: error instanceof Error ? error.message : "Перезапуск не выполнен", variant: "error" }),
     });
   };
 
@@ -276,7 +291,26 @@ export function AdminPanel() {
           <h1 className="text-display font-medium text-ink-100">Отбор моделей</h1>
           <p className="text-sm text-ink-400 mt-1">Discovery → проверка задачи → ручное добавление в роли.</p>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => actions.logout.mutate()}>Выйти</Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" isLoading={actions.restartServer.isPending} leftIcon={<Power className="h-3.5 w-3.5" />} onClick={restartServer}>Restart server</Button>
+          <Button size="sm" variant="ghost" onClick={() => actions.logout.mutate()}>Выйти</Button>
+        </div>
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-ink-500 mr-1">Подключённые провайдеры:</span>
+        {providers.filter((provider) => provider.configured || provider.credentialPresent).map((provider) => (
+          <button
+            key={provider.id}
+            type="button"
+            onClick={() => { setProviderSlug(provider.slug); setProviderError(null); }}
+            title={provider.diagnostic ?? `Выбрать ${provider.name}`}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${providerSlug === provider.slug ? "border-accent text-accent bg-accent/10" : "border-ink-700/40 text-ink-300 bg-ink-800/40 hover:border-ink-600"}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${provider.configured ? "bg-success" : "bg-warning"}`} />
+            {provider.name}
+          </button>
+        ))}
       </div>
 
       <section className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
@@ -289,16 +323,18 @@ export function AdminPanel() {
               className="h-10 min-w-0 flex-1 rounded-lg bg-ink-800/60 border border-ink-700/40 px-3 text-sm text-ink-100"
             >
               <option value="">Выберите провайдера</option>
-              {providers.filter((provider) => provider.configured).map((provider) => (
+              {providers.filter((provider) => provider.configured || provider.credentialPresent).map((provider) => (
                 <option key={provider.id} value={provider.slug}>{provider.name}</option>
               ))}
             </select>
-            <Button disabled={!selectedProvider} isLoading={actions.discover.isPending || actions.testAll.isPending} leftIcon={<RefreshCw className="h-4 w-4" />} onClick={discoverAndTest}>
+            <Button disabled={!selectedProvider?.configured} isLoading={actions.discover.isPending || actions.testAll.isPending} leftIcon={<RefreshCw className="h-4 w-4" />} onClick={discoverAndTest}>
               Discover models
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-3 mt-3">
-            <p className="text-xs text-success">{selectedProvider?.configured ? "Credential подключён через Portainer" : "Выберите подключённого провайдера"}</p>
+            <p className={`text-xs ${selectedProvider?.configured ? "text-success" : selectedProvider?.credentialPresent ? "text-warning" : "text-ink-500"}`}>
+              {selectedProvider?.configured ? "Credential подключён через Portainer" : selectedProvider?.diagnostic ?? "Выберите подключённого провайдера"}
+            </p>
             <Button className="hidden" size="sm" disabled={!selectedProvider} isLoading={actions.testAll.isPending} onClick={testVisible}>
               Тестировать все модели
             </Button>
@@ -320,7 +356,9 @@ export function AdminPanel() {
         </Card>
       </section>
 
-      <section className="mt-8">
+      {providerError && <div role="alert" className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{providerError}</div>}
+
+      {selectedProvider && <section className="mt-8">
         <div className="flex flex-wrap justify-between gap-3 mb-3">
           <div>
             <h2 className="text-base font-medium text-ink-100">{candidateView === "ALL" ? "Все кандидаты provider-а" : candidateView === "FOCUS" ? "Доступные кандидаты" : candidateView === "HIDDEN" ? "Скрытые кандидаты" : "Paid / Unknown / Offline"}</h2>
@@ -328,14 +366,11 @@ export function AdminPanel() {
               {candidateView === "ALL" ? "Сначала проверьте статусы, затем добавляйте Online-модели в роли." : candidateView === "FOCUS" ? "Free/Limited: сначала массовый тест, после Online можно добавить в рейтинг." : candidateView === "HIDDEN" ? "Скрыты из рабочей очереди; история сохранена." : "Справочный архив: для Paid/Unknown полный тест требует подтверждения."}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="ml-auto flex flex-wrap justify-end gap-2">
             <Button size="sm" variant={candidateView === "ALL" ? "primary" : "secondary"} onClick={() => setCandidateView("ALL")}>Все</Button>
             <Button size="sm" variant={candidateView === "FOCUS" ? "primary" : "secondary"} onClick={() => setCandidateView("FOCUS")}>Free / Limited</Button>
             <Button size="sm" variant={candidateView === "ARCHIVE" ? "primary" : "secondary"} onClick={() => setCandidateView("ARCHIVE")}>Paid / Unknown</Button>
             <Button size="sm" variant={candidateView === "HIDDEN" ? "primary" : "secondary"} onClick={() => setCandidateView("HIDDEN")}>Скрытые</Button>
-            <Button size="sm" className="bg-success text-ink-950 hover:bg-success/80" disabled={!selectedProvider || !candidates.length} isLoading={actions.testAll.isPending} leftIcon={<Play className="h-3.5 w-3.5" />} onClick={testVisible}>
-              Тестировать видимые
-            </Button>
             <select value={candidateSort} onChange={(event) => setCandidateSort(event.target.value as typeof candidateSort)} className="h-8 rounded-lg bg-ink-800/60 border border-ink-700/40 px-2 text-xs text-ink-200">
               <option value="DEFAULT">Порядок по умолчанию</option>
               <option value="ONLINE">Сначала онлайн</option>
@@ -347,12 +382,17 @@ export function AdminPanel() {
             </select>
           </div>
         </div>
+        <div className="mb-3 flex justify-end">
+          <Button size="md" className="bg-success text-ink-950 hover:bg-success/80" disabled={!candidates.length} isLoading={actions.testAll.isPending} leftIcon={<Play className="h-4 w-4" />} onClick={testVisible}>
+            Тестировать видимые
+          </Button>
+        </div>
         <Card padding="none">
           {candidatesQuery.isLoading ? <p className="p-6 text-sm text-ink-500">Загрузка…</p>
             : candidates.length ? candidates.map((candidate) => <CandidateRow key={candidate.id} candidate={candidate} />)
               : <p className="p-6 text-sm text-ink-500">Выберите provider и запустите Discover models.</p>}
         </Card>
-      </section>
+      </section>}
     </div>
   );
 }

@@ -37,7 +37,7 @@ export function useAdminProviders(enabled: boolean) {
 }
 
 export function useCandidates(enabled: boolean, provider?: string) {
-  return useQuery({ queryKey: queryKeys.candidates(provider), queryFn: () => api.getCandidates(provider), enabled, retry: false });
+  return useQuery({ queryKey: queryKeys.candidates(provider), queryFn: () => api.getCandidates(provider), enabled: enabled && Boolean(provider), retry: false });
 }
 
 export function useAdminActions() {
@@ -61,6 +61,7 @@ export function useAdminActions() {
     updateMetadata: useMutation({ mutationFn: ({ id, body }: { id: string; body: { category?: import("@/lib/types").ModelCategory; priority?: string; hidden?: boolean } }) => api.updateCandidateMetadata(id, body), onSuccess: invalidate }),
     approve: useMutation({ mutationFn: ({ id, placements }: { id: string; placements: Array<{ role: import("@/lib/types").ModelCategory; stars: number }> }) => api.approveCandidate(id, placements), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: api.rejectCandidate, onSuccess: invalidate }),
+    restartServer: useMutation({ mutationFn: api.restartServer }),
   };
 }
 
