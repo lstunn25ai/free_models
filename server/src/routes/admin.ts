@@ -296,20 +296,31 @@ adminRouter.post("/candidates/:id/quota", async (req: Request, res: Response) =>
 adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => {
   const providerSlug = typeof req.body?.provider === "string" ? req.body.provider : undefined;
   const scope = req.body?.scope === "ALL" ? "ALL" : "AVAILABLE";
+  const filter = ["ALL", "FOCUS", "ARCHIVE", "HIDDEN"].includes(req.body?.filter) ? req.body.filter as "ALL" | "FOCUS" | "ARCHIVE" | "HIDDEN" : undefined;
+  const quota = ["ALL", "FREE", "LIMITED", "PAID", "UNKNOWN"].includes(req.body?.quota) ? req.body.quota as QuotaStatus | "ALL" : "ALL";
   if (!providerSlug) {
     res.status(400).json({ error: "Select one configured provider before running a batch test" });
     return;
   }
-  if (scope === "ALL" && req.body?.confirmPaidUnknown !== true) {
+  const testsPaidOrUnknown = filter === "ARCHIVE" || filter === "ALL" || quota === "PAID" || quota === "UNKNOWN" || scope === "ALL";
+  if (testsPaidOrUnknown && req.body?.confirmPaidUnknown !== true) {
     res.status(400).json({ error: "Testing Paid or Unknown candidates requires explicit confirmation" });
     return;
   }
+  const filterWhere = filter === "HIDDEN"
+    ? { hidden: true }
+    : {
+        hidden: false,
+        ...(filter === "FOCUS" ? { quotaStatus: { in: ["FREE", "LIMITED"] } } : {}),
+        ...(filter === "ARCHIVE" ? { quotaStatus: { in: ["PAID", "UNKNOWN"] } } : {}),
+      };
   const candidates = await prisma.candidateModel.findMany({
     where: {
       reviewStatus: { in: ["DISCOVERED", "APPROVED"] },
-      hidden: false,
+      ...filterWhere,
       provider: { slug: providerSlug },
       ...(scope === "AVAILABLE" ? { quotaStatus: { in: ["FREE", "LIMITED"] } } : {}),
+      ...(quota !== "ALL" ? { quotaStatus: quota } : {}),
     },
     include: { provider: { select: { id: true, name: true, slug: true } } },
     orderBy: { updatedAt: "asc" },
@@ -337,7 +348,7 @@ adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => 
       if (candidate) await runOne(candidate);
     }
   }));
-  res.json({ provider: providerSlug, scope, totalChecked: results.length, results });
+  res.json({ provider: providerSlug, scope: filter ? "VISIBLE" : scope, totalChecked: results.length, results });
 });
 
 adminRouter.post("/candidates/:id/metadata", async (req: Request, res: Response) => {

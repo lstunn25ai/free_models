@@ -23,6 +23,8 @@ services:
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
       ZAI_API_KEY: ${ZAI_API_KEY:-}
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      QODER_API_KEY: ${QODER_API_KEY:-}
+      LONGCAT_API_KEY: ${LONGCAT_API_KEY:-}
     volumes:
       - db_data:/app/data
     networks:

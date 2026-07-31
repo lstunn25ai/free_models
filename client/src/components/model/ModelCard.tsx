@@ -24,6 +24,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
+  Copy,
   Zap,
   Star,
   TrendingUp,
@@ -37,6 +38,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { HealthCircle } from "@/components/health/HealthCircle";
+import { FeedbackButtons } from "@/components/feedback/FeedbackButtons";
 import { StatusIndicator } from "@/components/health/StatusIndicator";
 import { ProviderBadge } from "@/components/model/ProviderBadge";
 import {
@@ -174,6 +176,12 @@ function ProviderRow({
           <HealthCircle up={approxUp} down={approxDown} size={32} />
         </div>
 
+        {/* Per provider/model feedback */}
+        <FeedbackButtons
+          providerModelId={pm.id}
+          disabled={isRacing}
+        />
+
         {/* Expand for details — always show, but only show toggle if there are details */}
         <button
           onClick={() => setExpanded(!expanded)}
@@ -235,9 +243,17 @@ export function ModelCard({
           <h3 className="text-sm font-medium text-ink-100 truncate">
             {model.name}
           </h3>
-          <p className="text-[11px] text-ink-500 font-mono truncate mt-0.5">
-            {model.slug}
-          </p>
+          <div className="flex items-center gap-1 mt-0.5 min-w-0">
+            <button
+              type="button"
+              className="text-[11px] text-ink-500 font-mono truncate hover:text-ink-200 transition-colors text-left"
+              title="Скопировать точный model ID провайдера"
+              onClick={() => void navigator.clipboard.writeText(model.slug)}
+            >
+              {model.slug}
+            </button>
+            <Copy className="h-3 w-3 text-ink-600 flex-shrink-0" aria-hidden="true" />
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="flex items-center gap-0.5">

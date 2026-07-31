@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Eye, KeyRound, Minus, Play, Plus, RefreshCw, Star } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, Play, Plus, RefreshCw, Star } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusIndicator } from "@/components/health/StatusIndicator";
@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { CATEGORY_META, formatSpeed } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { CandidateModel, ModelCategory } from "@/lib/types";
+import { CategoryIcon } from "@/components/model/CategoryIcon";
 
 function LoginGate() {
   const [password, setPassword] = useState("");
@@ -59,7 +60,7 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
   const { showToast } = useToast();
   const [selected, setSelected] = useState<Array<{ role: ModelCategory; stars: number }>>([]);
   const [open, setOpen] = useState(false);
-  const busy = actions.test.isPending || actions.approve.isPending || actions.updateMetadata.isPending;
+  const busy = actions.test.isPending || actions.updateMetadata.isPending;
   const canAdd = candidate.testStatus === "ONLINE" && candidate.roleMatches.length > 0;
 
   const toggleRole = (role: ModelCategory, stars: number) => {
@@ -73,6 +74,7 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
       <div className="min-w-0">
         <div className="flex flex-wrap gap-2 items-center">
           <p className="text-sm text-ink-100 font-medium truncate">{candidate.name}</p>
+          {Date.now() - new Date(candidate.discoveredAt).getTime() < 7 * 24 * 60 * 60 * 1000 && <span className="rounded-full bg-accent/15 text-accent px-1.5 py-0.5 text-[9px] font-semibold">NEW</span>}
           <StatusIndicator status={candidate.testStatus} size="xs" showLabel />
           <span className={candidate.quotaStatus === "FREE" ? "text-success text-xs" : candidate.quotaStatus === "LIMITED" ? "text-warning text-xs" : "text-ink-500 text-xs"}>
             {candidate.quotaStatus}{candidate.quotaLimit ? ` · ${candidate.quotaLimit}` : ""}
@@ -83,7 +85,8 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
         </p>
         <div className="flex flex-wrap gap-1.5 mt-2">
           {candidate.roleMatches.map((match) => (
-            <span key={match.role} className="inline-flex gap-1 items-center rounded border border-ink-700/50 px-1.5 py-0.5 text-[10px] text-ink-300">
+              <span key={match.role} className="inline-flex gap-1 items-center rounded border border-ink-700/50 px-1.5 py-0.5 text-[10px] text-ink-300">
+              <CategoryIcon role={match.role} className="h-3 w-3 text-accent" />
               <span>{CATEGORY_META[match.role]?.label ?? match.role}</span>
               <Stars stars={match.stars} />
             </span>
@@ -112,13 +115,13 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
           title={candidate.hidden ? "Вернуть в рабочую очередь" : "Скрыть из активной очереди"}
           onClick={() => actions.updateMetadata.mutate({ id: candidate.id, body: { hidden: !candidate.hidden } })}
         >
-          {candidate.hidden ? <Eye className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
+          {candidate.hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
         </Button>
       </div>
       <div className="relative">
         <Button
           size="sm"
-          disabled={busy || !canAdd}
+          disabled={actions.approve.isPending || !canAdd}
           leftIcon={<Plus className="h-3.5 w-3.5" />}
           onClick={() => setOpen((value) => !value)}
           title={canAdd ? "Выбрать роли" : "Сначала выполните успешный Online-тест модели"}
@@ -136,6 +139,7 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
                     checked={selected.some((item) => item.role === match.role)}
                     onChange={() => toggleRole(match.role, match.stars)}
                   />
+                  <CategoryIcon role={match.role} className="h-3 w-3 text-accent" />
                   {CATEGORY_META[match.role]?.label ?? match.role}
                 </span>
                 <Stars stars={match.stars} />
@@ -174,6 +178,7 @@ export function AdminPanel() {
   const [providerSlug, setProviderSlug] = useState<string>();
   const [quota, setQuota] = useState<"ALL" | CandidateModel["quotaStatus"]>("ALL");
   const [candidateView, setCandidateView] = useState<"ALL" | "FOCUS" | "ARCHIVE" | "HIDDEN">("ALL");
+  const [candidateSort, setCandidateSort] = useState<"DEFAULT" | "ONLINE" | "NEW" | ModelCategory>("DEFAULT");
   const [customUrl, setCustomUrl] = useState("");
   const [customKey, setCustomKey] = useState("");
   const [customModels, setCustomModels] = useState<Array<{ slug: string; name: string }>>([]);
@@ -192,6 +197,15 @@ export function AdminPanel() {
     const isCandidateForTest = ["FREE", "LIMITED"].includes(candidate.quotaStatus);
     if (candidateView === "ALL") return true;
     return candidateView === "FOCUS" ? isCandidateForTest : !isCandidateForTest;
+  }).sort((left, right) => {
+    if (candidateSort === "ONLINE") return Number(right.testStatus === "ONLINE") - Number(left.testStatus === "ONLINE") || left.name.localeCompare(right.name);
+    if (candidateSort === "NEW") return new Date(right.discoveredAt).getTime() - new Date(left.discoveredAt).getTime();
+    if (CATEGORY_META[candidateSort]?.label) {
+      const leftMatch = left.roleMatches.find((match) => match.role === candidateSort)?.stars ?? 0;
+      const rightMatch = right.roleMatches.find((match) => match.role === candidateSort)?.stars ?? 0;
+      return rightMatch - leftMatch || left.name.localeCompare(right.name);
+    }
+    return 0;
   });
 
   const discover = () => selectedProvider && actions.discover.mutate(selectedProvider.slug, {
@@ -212,6 +226,35 @@ export function AdminPanel() {
       onError: () => showToast({ title: "Тест всех моделей не выполнен", variant: "error" }),
     });
   };
+
+  const discoverAndTest = () => {
+    if (!selectedProvider) return;
+    actions.discover.mutate(selectedProvider.slug, {
+      onSuccess: (result) => {
+        showToast({ title: `Моделей обнаружено: ${result.imported}. Запускаю первичный тест…`, variant: "success" });
+        actions.testAll.mutate({ provider: selectedProvider.slug, scope: "VISIBLE", filter: "ALL", quota: "ALL", confirmPaidUnknown: true }, {
+          onSuccess: (testResult) => showToast({ title: `Первичный тест завершён: ${testResult.totalChecked}`, variant: "success" }),
+          onError: () => showToast({ title: "Discovery завершён, но первичный тест не выполнен", variant: "error" }),
+        });
+      },
+      onError: () => showToast({ title: "Discovery не выполнен", variant: "error" }),
+    });
+  };
+
+  const testVisible = () => {
+    if (!selectedProvider) return;
+    const needsConfirmation = candidateView === "ARCHIVE" || candidateView === "ALL" || quota === "PAID" || quota === "UNKNOWN";
+    if (needsConfirmation && !window.confirm("Будут отправлены короткие тестовые запросы моделям текущего списка, включая Paid/Unknown. Продолжить?")) return;
+    actions.testAll.mutate({ provider: selectedProvider.slug, scope: "VISIBLE", filter: candidateView, quota, confirmPaidUnknown: needsConfirmation }, {
+      onSuccess: (result) => showToast({ title: `Проверено моделей: ${result.totalChecked}`, variant: "success" }),
+      onError: () => showToast({ title: "Групповой тест не выполнен", variant: "error" }),
+    });
+  };
+
+  // Legacy handlers remain available for compatibility with older links.
+  void discover;
+  void testAvailable;
+  void testAllProviderModels;
 
   const testCustom = async () => {
     setCustomBusy(true);
@@ -250,16 +293,16 @@ export function AdminPanel() {
                 <option key={provider.id} value={provider.slug}>{provider.name}</option>
               ))}
             </select>
-            <Button disabled={!selectedProvider} isLoading={actions.discover.isPending} leftIcon={<RefreshCw className="h-4 w-4" />} onClick={discover}>
+            <Button disabled={!selectedProvider} isLoading={actions.discover.isPending || actions.testAll.isPending} leftIcon={<RefreshCw className="h-4 w-4" />} onClick={discoverAndTest}>
               Discover models
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-3 mt-3">
             <p className="text-xs text-success">{selectedProvider?.configured ? "Credential подключён через Portainer" : "Выберите подключённого провайдера"}</p>
-            <Button size="sm" disabled={!selectedProvider} isLoading={actions.testAll.isPending} onClick={testAllProviderModels}>
+            <Button className="hidden" size="sm" disabled={!selectedProvider} isLoading={actions.testAll.isPending} onClick={testVisible}>
               Тестировать все модели
             </Button>
-            <Button size="sm" variant="secondary" disabled={!selectedProvider} isLoading={actions.testAll.isPending} onClick={testAvailable}>
+            <Button className="hidden" size="sm" variant="secondary" disabled={!selectedProvider} isLoading={actions.testAll.isPending} onClick={testVisible}>
               Тест Free / Limited
             </Button>
           </div>
@@ -290,6 +333,15 @@ export function AdminPanel() {
             <Button size="sm" variant={candidateView === "FOCUS" ? "primary" : "secondary"} onClick={() => setCandidateView("FOCUS")}>Free / Limited</Button>
             <Button size="sm" variant={candidateView === "ARCHIVE" ? "primary" : "secondary"} onClick={() => setCandidateView("ARCHIVE")}>Paid / Unknown</Button>
             <Button size="sm" variant={candidateView === "HIDDEN" ? "primary" : "secondary"} onClick={() => setCandidateView("HIDDEN")}>Скрытые</Button>
+            <Button size="sm" className="bg-success text-ink-950 hover:bg-success/80" disabled={!selectedProvider || !candidates.length} isLoading={actions.testAll.isPending} leftIcon={<Play className="h-3.5 w-3.5" />} onClick={testVisible}>
+              Тестировать видимые
+            </Button>
+            <select value={candidateSort} onChange={(event) => setCandidateSort(event.target.value as typeof candidateSort)} className="h-8 rounded-lg bg-ink-800/60 border border-ink-700/40 px-2 text-xs text-ink-200">
+              <option value="DEFAULT">Порядок по умолчанию</option>
+              <option value="ONLINE">Сначала онлайн</option>
+              <option value="NEW">Сначала новые</option>
+              {Object.entries(CATEGORY_META).map(([role, meta]) => <option key={role} value={role}>{meta.label}</option>)}
+            </select>
             <select value={quota} onChange={(event) => setQuota(event.target.value as typeof quota)} className="h-8 rounded-lg bg-ink-800/60 border border-ink-700/40 px-2 text-xs text-ink-200">
               <option value="ALL">Все</option><option value="FREE">Free</option><option value="LIMITED">Limited</option><option value="PAID">Paid</option><option value="UNKNOWN">Unknown</option>
             </select>

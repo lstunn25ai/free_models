@@ -29,10 +29,10 @@ const dotSizes: Record<Size, string> = {
 };
 
 const labelMap: Record<HealthStatus, string> = {
-  PENDING: "Pending",
-  ONLINE: "Online",
-  OFFLINE: "Offline",
-  DEGRADED: "Degraded",
+  PENDING: "Проверяется",
+  ONLINE: "Онлайн",
+  OFFLINE: "Офлайн",
+  DEGRADED: "Частично работает",
 };
 
 export function StatusIndicator({

@@ -107,10 +107,7 @@ function openRouterTariffEvidence(model: {
   pricing?: Record<string, string | undefined>;
   per_request_limits?: unknown;
 }): Pick<DiscoveredModel, "catalogTariff" | "catalogLimit" | "catalogPeriod" | "catalogTariffSource"> {
-  const prices = Object.values(model.pricing ?? [])
-    .filter((value): value is string => typeof value === "string")
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value));
+  const prices = numericValues(model.pricing);
   const explicitlyFree = model.id.endsWith(":free");
   const allKnownPricesAreZero = prices.length > 0 && prices.every((value) => value === 0);
 
@@ -129,6 +126,17 @@ function openRouterTariffEvidence(model: {
     return { catalogTariff: "PAID", catalogTariffSource: "OpenRouter non-zero catalog pricing" };
   }
   return {};
+}
+
+function numericValues(value: unknown): number[] {
+  if (typeof value === "number" && Number.isFinite(value)) return [value];
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? [parsed] : [];
+  }
+  if (Array.isArray(value)) return value.flatMap(numericValues);
+  if (value && typeof value === "object") return Object.values(value).flatMap(numericValues);
+  return [];
 }
 
 /**

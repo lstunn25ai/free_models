@@ -59,10 +59,7 @@ function catalogTariffEvidence(slug: string, model: OpenAIModel): Pick<Discovere
   }
   const priceRecord = model.pricing;
   if (!priceRecord || typeof priceRecord !== "object" || Array.isArray(priceRecord)) return {};
-  const prices = Object.values(priceRecord)
-    .filter((value): value is string | number => typeof value === "string" || typeof value === "number")
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value));
+  const prices = numericValues(priceRecord);
   if (prices.some((value) => value > 0)) {
     return { catalogTariff: "PAID", catalogTariffSource: `${slug} non-zero catalog pricing` };
   }
@@ -75,6 +72,17 @@ function catalogTariffEvidence(slug: string, model: OpenAIModel): Pick<Discovere
     };
   }
   return {};
+}
+
+function numericValues(value: unknown): number[] {
+  if (typeof value === "number" && Number.isFinite(value)) return [value];
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? [parsed] : [];
+  }
+  if (Array.isArray(value)) return value.flatMap(numericValues);
+  if (value && typeof value === "object") return Object.values(value).flatMap(numericValues);
+  return [];
 }
 
 function mapHttpStatus(status: number): HealthStatus {
