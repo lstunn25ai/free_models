@@ -14,7 +14,14 @@ export interface QuotaClassification {
   source: string | null;
 }
 
-export function classifyQuota(rule: QuotaRuleInput | undefined, catalog?: { isFree?: boolean; freeSource?: string }): QuotaClassification {
+export function classifyQuota(rule: QuotaRuleInput | undefined, catalog?: {
+  catalogTariff?: Exclude<QuotaStatus, "UNKNOWN">;
+  catalogLimit?: string;
+  catalogPeriod?: string;
+  catalogTariffSource?: string;
+  isFree?: boolean;
+  freeSource?: string;
+}): QuotaClassification {
   if (rule && ["FREE", "LIMITED", "PAID"].includes(rule.status)) {
     return {
       status: rule.status,
@@ -23,6 +30,15 @@ export function classifyQuota(rule: QuotaRuleInput | undefined, catalog?: { isFr
       source: "Manual quota registry",
     };
   }
+  if (catalog?.catalogTariff) {
+    return {
+      status: catalog.catalogTariff,
+      limit: catalog.catalogLimit ?? null,
+      period: catalog.catalogPeriod ?? null,
+      source: catalog.catalogTariffSource ?? "Provider catalog pricing evidence",
+    };
+  }
+  // Compatibility for candidates written by the earlier isFree-only contract.
   if (catalog?.isFree) {
     return { status: "FREE", limit: null, period: null, source: catalog.freeSource ?? "Provider catalog free label" };
   }

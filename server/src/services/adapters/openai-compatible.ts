@@ -1,7 +1,7 @@
-import type { HealthCheckResult, HealthStatus, ProviderAdapter } from "../provider-adapter.js";
+import type { DiscoveredModel, HealthCheckResult, HealthStatus, ProviderAdapter } from "../provider-adapter.js";
 import { TEST_PROMPTS } from "../provider-adapter.js";
 
-type OpenAIModel = { id?: unknown; name?: unknown };
+type OpenAIModel = { id?: unknown; name?: unknown; pricing?: unknown; is_free?: unknown; free?: unknown };
 
 /**
  * Adapter for providers exposing the standard OpenAI-compatible `/models`
@@ -22,7 +22,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     if (!response.ok) throw new Error(`${this.slug} model discovery failed (${response.status})`);
     const body = await response.json() as { data?: OpenAIModel[] };
     return (body.data ?? []).flatMap((model) => typeof model.id === "string" && model.id.length <= 200
-      ? [{ slug: model.id, name: typeof model.name === "string" ? model.name : model.id }]
+      ? [{ slug: model.id, name: typeof model.name === "string" ? model.name : model.id, ...catalogTariffEvidence(this.slug, model) }]
       : []);
   }
 
@@ -46,6 +46,35 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   getTestPrompt(category: string): string {
     return TEST_PROMPTS[category] ?? TEST_PROMPTS.DEFAULT;
   }
+}
+
+function catalogTariffEvidence(slug: string, model: OpenAIModel): Pick<DiscoveredModel, "catalogTariff" | "catalogLimit" | "catalogPeriod" | "catalogTariffSource"> {
+  if (model.is_free === true || model.free === true) {
+    return {
+      catalogTariff: "LIMITED",
+      catalogLimit: "Provider rate limits may apply",
+      catalogPeriod: "Provider-defined",
+      catalogTariffSource: `${slug} explicit free catalog flag`,
+    };
+  }
+  const priceRecord = model.pricing;
+  if (!priceRecord || typeof priceRecord !== "object" || Array.isArray(priceRecord)) return {};
+  const prices = Object.values(priceRecord)
+    .filter((value): value is string | number => typeof value === "string" || typeof value === "number")
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  if (prices.some((value) => value > 0)) {
+    return { catalogTariff: "PAID", catalogTariffSource: `${slug} non-zero catalog pricing` };
+  }
+  if (prices.length > 0 && prices.every((value) => value === 0)) {
+    return {
+      catalogTariff: "LIMITED",
+      catalogLimit: "Provider rate limits may apply",
+      catalogPeriod: "Provider-defined",
+      catalogTariffSource: `${slug} zero pricing catalog evidence`,
+    };
+  }
+  return {};
 }
 
 function mapHttpStatus(status: number): HealthStatus {

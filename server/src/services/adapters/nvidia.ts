@@ -21,6 +21,10 @@ export class NvidiaAdapter extends OpenRouterAdapter {
         : /(^|[-_:/ ])free($|[-_:/ ])/i.test(`${model.slug} ${model.name}`)
           ? "NVIDIA catalog free label"
           : undefined,
+      catalogTariff: model.catalogTariff ?? (/(^|[-_:/ ])free($|[-_:/ ])/i.test(`${model.slug} ${model.name}`) ? "LIMITED" : undefined),
+      catalogLimit: model.catalogLimit ?? (/(^|[-_:/ ])free($|[-_:/ ])/i.test(`${model.slug} ${model.name}`) ? "Provider rate limits may apply" : undefined),
+      catalogPeriod: model.catalogPeriod ?? (/(^|[-_:/ ])free($|[-_:/ ])/i.test(`${model.slug} ${model.name}`) ? "Provider-defined" : undefined),
+      catalogTariffSource: model.catalogTariffSource ?? (/(^|[-_:/ ])free($|[-_:/ ])/i.test(`${model.slug} ${model.name}`) ? "NVIDIA catalog free label" : undefined),
     }));
   }
 }

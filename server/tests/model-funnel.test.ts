@@ -8,11 +8,25 @@ test("manual quota registry overrides catalog evidence", () => {
   });
 });
 
-test("catalog free evidence becomes a Free candidate before a smoke test", () => {
-  assert.deepEqual(classifyQuota(undefined, { isFree: true, freeSource: "OpenRouter :free catalog label" }), {
-    status: "FREE", limit: null, period: null, source: "OpenRouter :free catalog label",
+test("catalog tariff evidence enables limited candidates before a smoke test", () => {
+  assert.deepEqual(classifyQuota(undefined, {
+    catalogTariff: "LIMITED",
+    catalogLimit: "Provider rate limits apply",
+    catalogPeriod: "Provider-defined",
+    catalogTariffSource: "OpenRouter :free catalog label",
+  }), {
+    status: "LIMITED", limit: "Provider rate limits apply", period: "Provider-defined", source: "OpenRouter :free catalog label",
   });
   assert.deepEqual(classifyQuota(undefined), { status: "UNKNOWN", limit: null, period: null, source: null });
+});
+
+test("manual quota registry still overrides paid catalog evidence", () => {
+  assert.deepEqual(classifyQuota({ status: "LIMITED", limit: "20", period: "minute" }, {
+    catalogTariff: "PAID",
+    catalogTariffSource: "Provider catalog",
+  }), {
+    status: "LIMITED", limit: "20", period: "minute", source: "Manual quota registry",
+  });
 });
 
 test("role recommendation remains a recommendation", () => {

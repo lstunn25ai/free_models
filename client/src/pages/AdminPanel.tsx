@@ -60,7 +60,7 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
   const [selected, setSelected] = useState<Array<{ role: ModelCategory; stars: number }>>([]);
   const [open, setOpen] = useState(false);
   const busy = actions.test.isPending || actions.approve.isPending || actions.updateMetadata.isPending;
-  const canPublish = candidate.testStatus === "ONLINE" && ["FREE", "LIMITED"].includes(candidate.quotaStatus);
+  const canAdd = candidate.testStatus === "ONLINE" && candidate.roleMatches.length > 0;
 
   const toggleRole = (role: ModelCategory, stars: number) => {
     setSelected((current) => current.some((item) => item.role === role)
@@ -118,10 +118,10 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
       <div className="relative">
         <Button
           size="sm"
-          disabled={busy || !canPublish || !candidate.roleMatches.length}
+          disabled={busy || !canAdd}
           leftIcon={<Plus className="h-3.5 w-3.5" />}
           onClick={() => setOpen((value) => !value)}
-          title={canPublish ? "Выбрать роли" : "Сначала выполните успешный тест модели"}
+          title={canAdd ? "Выбрать роли" : "Сначала выполните успешный Online-тест модели"}
         >
           Добавить
         </Button>
@@ -160,7 +160,8 @@ function CandidateRow({ candidate }: { candidate: CandidateModel }) {
             </Button>
           </div>
         )}
-        {!canPublish && <p className="mt-1 text-[10px] text-ink-500">Добавление станет доступно после Online-теста.</p>}
+        {!canAdd && <p className="mt-1 text-[10px] text-ink-500">Добавление станет доступно после Online-теста.</p>}
+        {canAdd && candidate.quotaStatus === "UNKNOWN" && <p className="mt-1 text-[10px] text-warning">Тариф не подтверждён: запись добавится как непроверенная.</p>}
       </div>
     </article>
   );
@@ -172,7 +173,7 @@ export function AdminPanel() {
   const { showToast } = useToast();
   const [providerSlug, setProviderSlug] = useState<string>();
   const [quota, setQuota] = useState<"ALL" | CandidateModel["quotaStatus"]>("ALL");
-  const [candidateView, setCandidateView] = useState<"FOCUS" | "ARCHIVE" | "HIDDEN">("FOCUS");
+  const [candidateView, setCandidateView] = useState<"ALL" | "FOCUS" | "ARCHIVE" | "HIDDEN">("ALL");
   const [customUrl, setCustomUrl] = useState("");
   const [customKey, setCustomKey] = useState("");
   const [customModels, setCustomModels] = useState<Array<{ slug: string; name: string }>>([]);
@@ -189,6 +190,7 @@ export function AdminPanel() {
     if (candidateView === "HIDDEN") return candidate.hidden;
     if (candidate.hidden) return false;
     const isCandidateForTest = ["FREE", "LIMITED"].includes(candidate.quotaStatus);
+    if (candidateView === "ALL") return true;
     return candidateView === "FOCUS" ? isCandidateForTest : !isCandidateForTest;
   });
 
@@ -197,10 +199,19 @@ export function AdminPanel() {
     onError: () => showToast({ title: "Discovery не выполнен", variant: "error" }),
   });
 
-  const testAvailable = () => actions.testAll.mutate(selectedProvider?.slug, {
+  const testAvailable = () => selectedProvider && actions.testAll.mutate({ provider: selectedProvider.slug, scope: "AVAILABLE" }, {
     onSuccess: (result) => showToast({ title: `Проверено моделей: ${result.totalChecked}`, variant: "success" }),
     onError: () => showToast({ title: "Групповой тест не выполнен", variant: "error" }),
   });
+
+  const testAllProviderModels = () => {
+    if (!selectedProvider) return;
+    if (!window.confirm("Будут отправлены короткие запросы ко всем моделям provider-а, включая Paid и Unknown. Это может расходовать квоту или средства. Продолжить?")) return;
+    actions.testAll.mutate({ provider: selectedProvider.slug, scope: "ALL", confirmPaidUnknown: true }, {
+      onSuccess: (result) => showToast({ title: `Проверено всех моделей: ${result.totalChecked}`, variant: "success" }),
+      onError: () => showToast({ title: "Тест всех моделей не выполнен", variant: "error" }),
+    });
+  };
 
   const testCustom = async () => {
     setCustomBusy(true);
@@ -245,8 +256,11 @@ export function AdminPanel() {
           </div>
           <div className="flex flex-wrap items-center gap-3 mt-3">
             <p className="text-xs text-success">{selectedProvider?.configured ? "Credential подключён через Portainer" : "Выберите подключённого провайдера"}</p>
+            <Button size="sm" disabled={!selectedProvider} isLoading={actions.testAll.isPending} onClick={testAllProviderModels}>
+              Тестировать все модели
+            </Button>
             <Button size="sm" variant="secondary" disabled={!selectedProvider} isLoading={actions.testAll.isPending} onClick={testAvailable}>
-              Тест доступных моделей
+              Тест Free / Limited
             </Button>
           </div>
         </Card>
@@ -266,12 +280,13 @@ export function AdminPanel() {
       <section className="mt-8">
         <div className="flex flex-wrap justify-between gap-3 mb-3">
           <div>
-            <h2 className="text-base font-medium text-ink-100">{candidateView === "FOCUS" ? "Доступные кандидаты" : candidateView === "HIDDEN" ? "Скрытые кандидаты" : "Paid / Unknown / Offline"}</h2>
+            <h2 className="text-base font-medium text-ink-100">{candidateView === "ALL" ? "Все кандидаты provider-а" : candidateView === "FOCUS" ? "Доступные кандидаты" : candidateView === "HIDDEN" ? "Скрытые кандидаты" : "Paid / Unknown / Offline"}</h2>
             <p className="text-xs text-ink-500 mt-1">
-              {candidateView === "FOCUS" ? "Free/Limited: сначала массовый тест, после Online можно добавить в рейтинг." : candidateView === "HIDDEN" ? "Скрыты из рабочей очереди; история сохранена." : "Справочный архив: не публикуется и не расходует batch-тесты."}
+              {candidateView === "ALL" ? "Сначала проверьте статусы, затем добавляйте Online-модели в роли." : candidateView === "FOCUS" ? "Free/Limited: сначала массовый тест, после Online можно добавить в рейтинг." : candidateView === "HIDDEN" ? "Скрыты из рабочей очереди; история сохранена." : "Справочный архив: для Paid/Unknown полный тест требует подтверждения."}
             </p>
           </div>
           <div className="flex gap-2">
+            <Button size="sm" variant={candidateView === "ALL" ? "primary" : "secondary"} onClick={() => setCandidateView("ALL")}>Все</Button>
             <Button size="sm" variant={candidateView === "FOCUS" ? "primary" : "secondary"} onClick={() => setCandidateView("FOCUS")}>Free / Limited</Button>
             <Button size="sm" variant={candidateView === "ARCHIVE" ? "primary" : "secondary"} onClick={() => setCandidateView("ARCHIVE")}>Paid / Unknown</Button>
             <Button size="sm" variant={candidateView === "HIDDEN" ? "primary" : "secondary"} onClick={() => setCandidateView("HIDDEN")}>Скрытые</Button>

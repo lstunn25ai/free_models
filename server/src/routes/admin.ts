@@ -4,6 +4,7 @@ import { prisma } from "../config/database.js";
 import { requireAdmin } from "../middleware/admin-auth.js";
 import { getProviderAdapter } from "../services/health-check.js";
 import { classifyQuota, recommendRole, type QuotaStatus } from "../services/model-funnel.js";
+import type { DiscoveredModel } from "../services/provider-adapter.js";
 
 const CATEGORIES = ["OPUS", "SONNET", "HAIKU", "FABLE", "IMAGE", "VIDEO", "EMBEDDINGS", "DEFAULT"] as const;
 
@@ -16,7 +17,7 @@ function suggestCategory(slug: string, name: string): string {
   return "DEFAULT";
 }
 
-async function quotaFor(providerSlug: string, model: { slug: string; isFree?: boolean; freeSource?: string }) {
+async function quotaFor(providerSlug: string, model: DiscoveredModel) {
   const rules = await prisma.quotaRule.findMany({ where: { providerSlug } });
   const rule = rules
     .filter((candidate) => model.slug === candidate.modelPattern || model.slug.includes(candidate.modelPattern))
@@ -294,10 +295,23 @@ adminRouter.post("/candidates/:id/quota", async (req: Request, res: Response) =>
 
 adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => {
   const providerSlug = typeof req.body?.provider === "string" ? req.body.provider : undefined;
+  const scope = req.body?.scope === "ALL" ? "ALL" : "AVAILABLE";
+  if (!providerSlug) {
+    res.status(400).json({ error: "Select one configured provider before running a batch test" });
+    return;
+  }
+  if (scope === "ALL" && req.body?.confirmPaidUnknown !== true) {
+    res.status(400).json({ error: "Testing Paid or Unknown candidates requires explicit confirmation" });
+    return;
+  }
   const candidates = await prisma.candidateModel.findMany({
-    where: { reviewStatus: { in: ["DISCOVERED", "APPROVED"] }, hidden: false, quotaStatus: { in: ["FREE", "LIMITED"] }, ...(providerSlug ? { provider: { slug: providerSlug } } : {}) },
+    where: {
+      reviewStatus: { in: ["DISCOVERED", "APPROVED"] },
+      hidden: false,
+      provider: { slug: providerSlug },
+      ...(scope === "AVAILABLE" ? { quotaStatus: { in: ["FREE", "LIMITED"] } } : {}),
+    },
     include: { provider: { select: { id: true, name: true, slug: true } } },
-    take: 100,
     orderBy: { updatedAt: "asc" },
   });
   const results: Array<{ id: string; status: string; speedMs?: number | null; error?: string | null }> = [];
@@ -323,7 +337,7 @@ adminRouter.post("/candidates/test-all", async (req: Request, res: Response) => 
       if (candidate) await runOne(candidate);
     }
   }));
-  res.json({ provider: providerSlug ?? null, totalChecked: results.length, results });
+  res.json({ provider: providerSlug, scope, totalChecked: results.length, results });
 });
 
 adminRouter.post("/candidates/:id/metadata", async (req: Request, res: Response) => {
@@ -385,8 +399,8 @@ adminRouter.post("/candidates/:id/approve", async (req: Request, res: Response) 
     res.status(404).json({ error: "Candidate not found" });
     return;
   }
-  if (!["FREE", "LIMITED"].includes(candidate.quotaStatus) || candidate.testStatus !== "ONLINE") {
-    res.status(409).json({ error: "Only classified candidates with a successful test can be approved" });
+  if (candidate.testStatus !== "ONLINE") {
+    res.status(409).json({ error: "Only candidates with a successful online test can be added" });
     return;
   }
   const result = await prisma.$transaction(async (tx) => {

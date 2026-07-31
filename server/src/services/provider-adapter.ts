@@ -43,7 +43,18 @@ export interface DiscoveredModel {
   slug: string;
   name: string;
   category?: string;
+  /**
+   * Evidence emitted by a provider's live model catalog. This describes price
+   * and quota signals only; it is not a claim that the current account has an
+   * unlimited entitlement.
+   */
+  catalogTariff?: "FREE" | "LIMITED" | "PAID";
+  catalogLimit?: string;
+  catalogPeriod?: string;
+  catalogTariffSource?: string;
+  /** @deprecated Prefer catalogTariff for newly written adapters. */
   isFree?: boolean;
+  /** @deprecated Prefer catalogTariffSource for newly written adapters. */
   freeSource?: string;
 }
 

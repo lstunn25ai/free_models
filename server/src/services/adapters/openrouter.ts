@@ -1,4 +1,4 @@
-import type { ProviderAdapter, HealthCheckResult, HealthStatus } from "../provider-adapter.js";
+import type { DiscoveredModel, ProviderAdapter, HealthCheckResult, HealthStatus } from "../provider-adapter.js";
 import { TEST_PROMPTS } from "../provider-adapter.js";
 
 /**
@@ -17,7 +17,7 @@ export class OpenRouterAdapter implements ProviderAdapter {
     this.baseUrl = baseUrl;
   }
 
-  async listModels(): Promise<{ slug: string; name: string; isFree: boolean; freeSource?: string }[]> {
+  async listModels(): Promise<DiscoveredModel[]> {
     const response = await fetch(`${this.baseUrl}/models?output_modalities=all`, {
       headers: { "Authorization": `Bearer ${this.apiKey}` },
     });
@@ -27,16 +27,18 @@ export class OpenRouterAdapter implements ProviderAdapter {
     }
 
     const data = await response.json() as {
-      data: Array<{ id: string; name?: string; pricing?: { prompt?: string; completion?: string } }>;
+      data: Array<{
+        id: string;
+        name?: string;
+        pricing?: Record<string, string | undefined>;
+        per_request_limits?: unknown;
+      }>;
     };
 
     return data.data.map(m => ({
       slug: m.id,
       name: m.name ?? m.id,
-      // The provider model id and zero token pricing are the only catalogue
-      // signals used here; a candidate still requires a live test before approval.
-      isFree: m.id.endsWith(":free") || (m.pricing?.prompt === "0" && m.pricing?.completion === "0"),
-      freeSource: m.id.endsWith(":free") ? "OpenRouter :free catalog label" : (m.pricing?.prompt === "0" && m.pricing?.completion === "0" ? "OpenRouter zero token pricing" : undefined),
+      ...openRouterTariffEvidence(m),
     }));
   }
 
@@ -98,6 +100,35 @@ export class OpenRouterAdapter implements ProviderAdapter {
   getTestPrompt(category: string): string {
     return TEST_PROMPTS[category] ?? TEST_PROMPTS.DEFAULT;
   }
+}
+
+function openRouterTariffEvidence(model: {
+  id: string;
+  pricing?: Record<string, string | undefined>;
+  per_request_limits?: unknown;
+}): Pick<DiscoveredModel, "catalogTariff" | "catalogLimit" | "catalogPeriod" | "catalogTariffSource"> {
+  const prices = Object.values(model.pricing ?? [])
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  const explicitlyFree = model.id.endsWith(":free");
+  const allKnownPricesAreZero = prices.length > 0 && prices.every((value) => value === 0);
+
+  // OpenRouter applies account-dependent rate limits to free models. Mark a
+  // zero-priced model as Limited, never as unlimited Free, until an admin
+  // registry rule provides stronger account-specific evidence.
+  if (explicitlyFree || allKnownPricesAreZero) {
+    return {
+      catalogTariff: "LIMITED",
+      catalogLimit: "Provider rate limits apply",
+      catalogPeriod: "Provider-defined",
+      catalogTariffSource: explicitlyFree ? "OpenRouter :free catalog label" : "OpenRouter zero pricing catalog evidence",
+    };
+  }
+  if (prices.some((value) => value > 0)) {
+    return { catalogTariff: "PAID", catalogTariffSource: "OpenRouter non-zero catalog pricing" };
+  }
+  return {};
 }
 
 /**
